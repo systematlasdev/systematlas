@@ -1,6 +1,6 @@
 {
   "name": "systematlas",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Visualize code flows authored by an LLM, at two altitudes (Flow + Sequence).",
   "type": "module",
   "license": "MIT",
