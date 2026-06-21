@@ -2,8 +2,15 @@
 
 > Visualize how your code actually flows — authored by an AI agent, at two altitudes.
 
+[![Live demo](https://img.shields.io/badge/▶-Live%20demo-5e54a8)](https://systematlasdev.github.io/systematlas/)
 [![npm](https://img.shields.io/npm/v/systematlas.svg)](https://www.npmjs.com/package/systematlas)
 [![license](https://img.shields.io/npm/l/systematlas.svg)](./LICENSE)
+
+### ▶ Try it live: **https://systematlasdev.github.io/systematlas/**
+
+The build pipeline of a tiny static-site generator — parallel drill-downs and a Sequence with reuse badges. Click **Open** on a step to dive in.
+
+<!-- TODO: add a screenshot / GIF here, e.g. docs/img/flow.png -->
 
 SystemAtlas turns a behaviour in your codebase into an interactive diagram at two levels of detail:
 
@@ -13,10 +20,6 @@ SystemAtlas turns a behaviour in your codebase into an interactive diagram at tw
 A Flow step can **drill down** into a sub-flow, and any step into a Sequence — so one diagram can carry the whole story, from the bird's-eye view to the precise calls.
 
 Documents are plain JSON (with a JSON Schema), **authored by an LLM over MCP** and rendered in the browser. Cross-platform — only Node 18+ and a browser.
-
-**▶ Live demo:** https://systematlasdev.github.io/systematlas/ — the build pipeline of a tiny static-site generator (parallel drill-downs + a Sequence with reuse badges).
-
-<!-- TODO: add a screenshot / GIF here, e.g. docs/screenshot.png -->
 
 ## Quick start
 
