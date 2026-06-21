@@ -72,6 +72,12 @@ export interface McpSetupResult {
   path: string;
   snippet: string;
 }
+export interface BuildResult {
+  /** Absolute path of the generated self-contained HTML. */
+  path: string;
+  /** How many documents were embedded. */
+  files: number;
+}
 
 /** Mutations — present only in serve mode (the file-access backend). */
 export interface ProjectWrites {
@@ -90,6 +96,10 @@ export interface ProjectWrites {
   mcpStatus(): Promise<McpStatus>;
   /** Write/merge an MCP config so an agent can author here (dryRun → snippet only). */
   setupMcp(location: string, schema: McpSchema, dryRun?: boolean): Promise<McpSetupResult>;
+  /** Build a self-contained HTML of the whole workspace; returns the output path. */
+  build(): Promise<BuildResult>;
+  /** Reveal a file/folder in the OS file manager (serve runs locally). */
+  reveal(target: string): Promise<void>;
 }
 
 export interface FlowSource {
@@ -243,6 +253,15 @@ function serveSource(): FlowSource {
         const data = await r.json().catch(() => null);
         if (!r.ok) throw new Error((data as { error?: string })?.error ?? `setup-mcp ${r.status}`);
         return data as McpSetupResult;
+      },
+      async build() {
+        const r = await fetch("/api/build", { method: "POST" });
+        const data = await r.json().catch(() => null);
+        if (!r.ok) throw new Error((data as { error?: string })?.error ?? `build ${r.status}`);
+        return data as BuildResult;
+      },
+      reveal(target) {
+        return send("/api/reveal", "POST", { path: target });
       },
     },
   };

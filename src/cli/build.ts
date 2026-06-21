@@ -30,6 +30,18 @@ function emit(dest: string, template: string, flows: Record<string, WorkspaceDoc
   console.log(`Built ${dest}`);
 }
 
+/** Build one self-contained HTML embedding the WHOLE workspace (drill-down works).
+ *  Shared by the CLI and the serve "Share → Export" action. Returns the output path. */
+export async function buildWorkspaceHtml(dir: string, outDir: string, minify = false): Promise<{ path: string; files: number }> {
+  const template = readTemplate();
+  const docs = await new Project(dir).readAll();
+  if (docs.length === 0) throw new Error("No *.flow.json / *.sequence.json documents to build.");
+  const flows = Object.fromEntries(docs.map((d) => [d.id, d]));
+  const dest = path.join(outDir, "index.html");
+  emit(dest, template, flows, minify);
+  return { path: dest, files: docs.length };
+}
+
 export async function runBuild(opts: BuildOptions): Promise<void> {
   const template = readTemplate();
 
@@ -55,6 +67,5 @@ export async function runBuild(opts: BuildOptions): Promise<void> {
   }
 
   // Default: one index.html embedding the WHOLE workspace → drill-down works.
-  const flows = Object.fromEntries(docs.map((d) => [d.id, d]));
-  emit(path.join(outDir, "index.html"), template, flows, opts.minify);
+  await buildWorkspaceHtml(dir, outDir, opts.minify);
 }

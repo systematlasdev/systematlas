@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { tokens } from "../tokens";
 import { BRAND } from "../brand";
-import type { DocMeta, McpStatus, McpSetupResult, McpSchema, DirListing } from "../data/source";
+import type { DocMeta, McpStatus, McpSetupResult, McpSchema, DirListing, BuildResult } from "../data/source";
 import {
   IconChevronRight,
   IconClose,
@@ -37,6 +37,10 @@ interface SidebarProps {
   parents: Record<string, string>;
   mcp: McpStatus | null;
   onSetupMcp: (location: string, schema: McpSchema, dryRun?: boolean) => Promise<McpSetupResult>;
+  /** Export the whole workspace as one self-contained HTML; resolves to its path. */
+  onBuild: () => Promise<BuildResult>;
+  /** Reveal a file/folder in the OS file manager. */
+  onReveal: (target: string) => Promise<void>;
   /** Expanded width (px) + drag-the-right-edge handler. */
   width?: number;
   onResizeStart?: (e: React.PointerEvent) => void;
@@ -125,6 +129,24 @@ export function Sidebar(props: SidebarProps) {
   const [customFmt, setCustomFmt] = useState<"json" | "toml">("json");
   const [customKey, setCustomKey] = useState("mcpServers");
   const [mcpChosen, setMcpChosen] = useState<{ label: string; location: string; schema: McpSchema; guiManaged?: boolean } | null>(null);
+  // Share / export state
+  const [shareOpen, setShareOpen] = useState(false);
+  const [building, setBuilding] = useState(false);
+  const [buildResult, setBuildResult] = useState<BuildResult | null>(null);
+  const [buildErr, setBuildErr] = useState<string | null>(null);
+  const doExport = async () => {
+    setBuilding(true);
+    setBuildErr(null);
+    try {
+      const r = await props.onBuild();
+      setBuildResult(r);
+    } catch (e) {
+      setBuildErr(String(e instanceof Error ? e.message : e));
+    } finally {
+      setBuilding(false);
+      setShareOpen(false);
+    }
+  };
 
   const doSetupMcp = async (location: string, schema: McpSchema, dryRun?: boolean) => {
     setMcpBusy(true);
@@ -345,19 +367,49 @@ export function Sidebar(props: SidebarProps) {
         </button>
       </div>
       {projectName ? (
-        <div
-          style={{
-            padding: "0 18px 8px",
-            fontSize: 12,
-            color: tokens.color.textSecondary,
-            fontWeight: 600,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-          title={projectName}
-        >
-          {projectName}
+        <div style={{ padding: "0 18px 8px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div
+              style={{ flex: "1 1 auto", fontSize: 12, color: tokens.color.textSecondary, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+              title={projectName}
+            >
+              {projectName}
+            </div>
+            {/* Share — only in serve mode with at least one document. */}
+            {canWrite && flows.length > 0 ? (
+              <div style={{ position: "relative", flex: "0 0 auto" }}>
+                <button
+                  className="ft-recent"
+                  style={{ height: 24, padding: "0 9px", borderRadius: 7, fontSize: 11.5, fontWeight: 600 }}
+                  disabled={building}
+                  title="Export / share this project"
+                  onClick={() => setShareOpen((v) => !v)}
+                >
+                  {building ? "Exporting…" : "Share ▾"}
+                </button>
+                {shareOpen ? (
+                  <div style={{ position: "absolute", top: 28, right: 0, zIndex: 20, minWidth: 210, background: "#fff", border: `1px solid ${tokens.color.border}`, borderRadius: 9, boxShadow: "0 6px 20px rgba(74,60,30,.16)", padding: 4 }}>
+                    <button className="ft-pop-item" onClick={doExport}>Export self-contained HTML</button>
+                    {buildResult ? (
+                      <button className="ft-pop-item" onClick={() => { props.onReveal(buildResult.path); setShareOpen(false); }}>Reveal output folder</button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          {buildErr ? (
+            <div style={{ marginTop: 6, fontSize: 11, color: "#8C3B2B" }}>Export failed: {buildErr}</div>
+          ) : buildResult ? (
+            <div style={{ marginTop: 6, fontSize: 11, color: "#3d7c52", lineHeight: 1.5 }}>
+              ✓ Exported {buildResult.files} document(s) → one HTML
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
+                <code style={{ flex: "1 1 auto", fontSize: 10, color: tokens.color.faint, fontFamily: tokens.font.mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={buildResult.path}>{buildResult.path}</code>
+                <button className="ft-recent" style={{ height: 22, padding: "0 7px", borderRadius: 6, fontSize: 10.5, flex: "0 0 auto" }} onClick={() => navigator.clipboard?.writeText(buildResult.path)}>Copy</button>
+                <button className="ft-recent" style={{ height: 22, padding: "0 7px", borderRadius: 6, fontSize: 10.5, flex: "0 0 auto" }} onClick={() => props.onReveal(buildResult.path)}>Reveal</button>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

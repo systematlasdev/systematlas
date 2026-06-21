@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type Doc, docKind } from "../model";
 import type { FlowDocument } from "../core/types";
-import { getSource, type DocMeta, type McpStatus, type McpSetupResult, type McpSchema, type DirListing } from "./source";
+import { getSource, type DocMeta, type McpStatus, type McpSetupResult, type McpSchema, type DirListing, type BuildResult } from "./source";
 
 export interface FlowData {
   flows: DocMeta[];
@@ -38,6 +38,10 @@ export interface FlowData {
   /** MCP onboarding state (serve only; null otherwise). */
   mcp: McpStatus | null;
   setupMcp: (location: string, schema: McpSchema, dryRun?: boolean) => Promise<McpSetupResult>;
+  /** Export the whole workspace as one self-contained HTML (serve only). */
+  build: () => Promise<BuildResult>;
+  /** Reveal a file/folder in the OS file manager (serve only). */
+  reveal: (target: string) => Promise<void>;
   doc: Doc | null;
   error: string | null;
   /** Whether live updates are available (serve mode). */
@@ -165,6 +169,14 @@ export function useFlowData(): FlowData {
     },
     [source, refreshMcp],
   );
+  const build = useCallback(
+    () => source.writes?.build() ?? Promise.reject(new Error("not available")),
+    [source],
+  );
+  const reveal = useCallback(
+    (target: string) => source.writes?.reveal(target) ?? Promise.resolve(),
+    [source],
+  );
 
   // Load the active flow whenever it changes.
   useEffect(() => {
@@ -271,6 +283,8 @@ export function useFlowData(): FlowData {
     parents,
     mcp,
     setupMcp,
+    build,
+    reveal,
     doc,
     error,
     live: !!source.subscribe,

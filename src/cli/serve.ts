@@ -8,6 +8,7 @@ import { Project } from "../core/project";
 import type { AnyDoc } from "../core/validate-doc";
 import { detectConfigured, detectAgents, setupMcp, type McpSchema } from "../core/mcp-config";
 import { readTemplate } from "./template";
+import { buildWorkspaceHtml } from "./build";
 import { BRAND } from "../brand";
 
 const SUFFIX_RE = /\.(flow|sequence)\.json$/;
@@ -32,6 +33,18 @@ function openUrl(url: string): void {
   if (platform === "win32") spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
   else if (platform === "darwin") spawn("open", [url], { detached: true, stdio: "ignore" }).unref();
   else spawn("xdg-open", [url], { detached: true, stdio: "ignore" }).unref();
+}
+
+/** Reveal a file/folder in the OS file manager (selecting the file when possible). */
+function revealInOs(target: string): void {
+  const t = path.resolve(target);
+  try {
+    if (process.platform === "win32") spawn("explorer", [`/select,${t}`], { detached: true, stdio: "ignore" }).unref();
+    else if (process.platform === "darwin") spawn("open", ["-R", t], { detached: true, stdio: "ignore" }).unref();
+    else spawn("xdg-open", [path.dirname(t)], { detached: true, stdio: "ignore" }).unref();
+  } catch {
+    /* best-effort */
+  }
 }
 
 // Native OS folder picker. `serve` is a local backend, so it can pop the real
@@ -251,6 +264,25 @@ export async function runServe(opts: ServeOptions): Promise<void> {
       try {
         const { location, schema, dryRun } = JSON.parse(await readBody(req)) as { location: string; schema: McpSchema; dryRun?: boolean };
         return json(res, 200, setupMcp({ location, schema, workspaceDir: projectDir, dryRun }));
+      } catch (e) {
+        return json(res, 400, { error: String(e) });
+      }
+    }
+
+    // --- Share: export the whole workspace as one self-contained HTML ----------
+    if (p === "/api/build" && method === "POST") {
+      try {
+        const out = await buildWorkspaceHtml(projectDir, path.join(projectDir, "dist"));
+        return json(res, 200, out);
+      } catch (e) {
+        return json(res, 500, { error: String(e instanceof Error ? e.message : e) });
+      }
+    }
+    if (p === "/api/reveal" && method === "POST") {
+      try {
+        const { path: target } = JSON.parse(await readBody(req)) as { path: string };
+        revealInOs(target);
+        return json(res, 200, { ok: true });
       } catch (e) {
         return json(res, 400, { error: String(e) });
       }
