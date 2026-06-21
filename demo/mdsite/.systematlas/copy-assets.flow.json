@@ -1,0 +1,123 @@
+{
+  "version": "1",
+  "id": "copy-assets",
+  "title": "Copy assets",
+  "layout": "TB",
+  "overview": [
+    "Walk the source tree and copy every non-Markdown file into the output, preserving relative paths. Markdown is skipped here (the page pipeline handles it)."
+  ],
+  "actors": [
+    {
+      "id": "assets",
+      "label": "Assets",
+      "kind": "service"
+    },
+    {
+      "id": "fs",
+      "label": "Filesystem",
+      "kind": "infra"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "type": "terminal",
+      "label": "Copy assets",
+      "description": [
+        "Recursively walk the source directory."
+      ],
+      "source": {
+        "file": "src/assets.js",
+        "symbol": "copyAssets",
+        "line": 6
+      }
+    },
+    {
+      "id": "walk",
+      "type": "step",
+      "label": "Walk source tree",
+      "description": [
+        "Read directory entries; recurse into sub-directories."
+      ],
+      "owner": "assets"
+    },
+    {
+      "id": "is_md",
+      "type": "decision",
+      "label": "Markdown file?",
+      "description": [
+        "Decide per entry whether it is a .md file."
+      ],
+      "owner": "assets"
+    },
+    {
+      "id": "skip",
+      "type": "step",
+      "label": "Skip (.md)",
+      "description": [
+        "Markdown is rendered by the page pipeline, not copied."
+      ],
+      "owner": "assets"
+    },
+    {
+      "id": "copy",
+      "type": "io",
+      "label": "Copy file → output",
+      "description": [
+        "Create the output sub-directory and copy the file verbatim."
+      ],
+      "owner": "fs"
+    },
+    {
+      "id": "done",
+      "type": "terminal",
+      "label": "Assets copied",
+      "description": [
+        "Return the list of copied relative paths."
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "start",
+      "to": "walk",
+      "type": "flow"
+    },
+    {
+      "from": "walk",
+      "to": "is_md",
+      "type": "flow",
+      "label": "each entry"
+    },
+    {
+      "from": "is_md",
+      "to": "skip",
+      "type": "branch",
+      "label": "yes (.md)"
+    },
+    {
+      "from": "is_md",
+      "to": "copy",
+      "type": "branch",
+      "label": "no"
+    },
+    {
+      "from": "copy",
+      "to": "walk",
+      "type": "return",
+      "label": "next entry"
+    },
+    {
+      "from": "skip",
+      "to": "walk",
+      "type": "return",
+      "label": "next entry"
+    },
+    {
+      "from": "walk",
+      "to": "done",
+      "type": "flow",
+      "label": "tree exhausted"
+    }
+  ]
+}

@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flow-trace.dev/schema/sequence.schema.json",
+  "title": "flow-trace Sequence document",
+  "description": "Object model for the Sequence mode (low-level, exact view): an ordered, nested record of real execution — which methods are called, in what order, with what params/request, what they return, and source refs. Rendered as a sequence diagram. A single *.sequence.json file is one Sequence document, linked from a Flow step via drill-down.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "kind", "id", "title", "actors", "calls"],
+  "properties": {
+    "$schema": {
+      "description": "Optional pointer to this schema for editor/IDE validation. Ignored by flow-trace.",
+      "type": "string"
+    },
+    "version": {
+      "description": "Schema version of this document, for migrations.",
+      "enum": ["1"]
+    },
+    "kind": {
+      "description": "Document kind discriminator. Always 'sequence' for a Sequence document.",
+      "const": "sequence"
+    },
+    "id": {
+      "description": "Identity of THIS sequence. Workspace-unique across flows AND sequences. Stable, scoped id (e.g. 'charge-sequence'), not a display label.",
+      "$ref": "#/$defs/scopedId"
+    },
+    "title": {
+      "description": "Human-readable title of the sequence (display only).",
+      "type": "string",
+      "minLength": 1
+    },
+    "overview": {
+      "description": "Optional document-level overview — general information about this sequence, as paragraphs (one per array item). Shown in the bottom Overview bar.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "actors": {
+      "description": "Participants = lifelines. Every participant, human AND system. Each call references actors as its caller (from) / callee (to). Drives lifeline color.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/actor" }
+    },
+    "phases": {
+      "description": "Optional sections that group the sequence (rendered as separators).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/phase" }
+    },
+    "calls": {
+      "description": "Ordered top-level calls. Each call may nest children (calls made during its activation). Pre-order traversal is the chronological order; nesting depth is the activation depth.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/call" }
+    }
+  },
+  "$defs": {
+    "scopedId": {
+      "description": "Stable, scoped identifier: lowercase alphanumerics with '.', '_' or '-' as separators (e.g. 'txn.charge', 'charge-detail'). This is identity, NOT the display label.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+([._-][a-z0-9]+)*$"
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "kind"],
+      "properties": {
+        "id": { "description": "Actor identity, referenced by call.from / call.to.", "$ref": "#/$defs/scopedId" },
+        "label": { "description": "Display name (e.g. 'Payment Gateway').", "type": "string", "minLength": 1 },
+        "kind": {
+          "description": "Nature of the participant. human = external user/operator; system = external system/remote API; service = internal component/service; infra = database/queue/cache.",
+          "enum": ["human", "system", "service", "infra"]
+        },
+        "color": {
+          "description": "Optional explicit lifeline color (hex). If omitted, an auto-palette is used.",
+          "type": "string",
+          "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$"
+        }
+      }
+    },
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label"],
+      "properties": {
+        "id": { "description": "Phase identity, referenced by call.phase.", "$ref": "#/$defs/scopedId" },
+        "label": { "description": "Display label for the section separator.", "type": "string", "minLength": 1 }
+      }
+    },
+    "call": {
+      "description": "One call/message. Only 'to' and 'method' are required — the rest is optional, like a Flow node's content.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "to", "method"],
+      "properties": {
+        "id": {
+          "description": "Call identity (unique across ALL calls in this sequence, including nested). Used for selection and cross-references.",
+          "$ref": "#/$defs/scopedId"
+        },
+        "from": {
+          "description": "Caller actor id (the lifeline the message starts from). Omit for an entry point.",
+          "$ref": "#/$defs/scopedId"
+        },
+        "to": {
+          "description": "Callee actor id (the lifeline the message arrives at).",
+          "$ref": "#/$defs/scopedId"
+        },
+        "method": {
+          "description": "What is called (e.g. 'PaymentAdapter.charge'). Display label of the message.",
+          "type": "string",
+          "minLength": 1
+        },
+        "phase": {
+          "description": "Optional — the phase (section) this call belongs to.",
+          "$ref": "#/$defs/scopedId"
+        },
+        "description": {
+          "description": "Optional — what this call does, as a LIST OF POINTS (one thesis per item, rendered as bullets).",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        },
+        "params": {
+          "description": "Optional — the arguments passed to the call.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/ioField" }
+        },
+        "returns": {
+          "description": "Optional — the named values the call returns.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/ioField" }
+        },
+        "returnType": {
+          "description": "Optional — the return type as a string (e.g. 'ChargeResult').",
+          "type": "string"
+        },
+        "request": {
+          "description": "Optional — a request payload summary (e.g. 'POST /charge { amount, currency }').",
+          "type": "string"
+        },
+        "response": {
+          "description": "Optional — a response payload summary (e.g. '{ id, status }').",
+          "type": "string"
+        },
+        "source": {
+          "description": "Optional — a code reference for this call (file / symbol / line).",
+          "$ref": "#/$defs/sourceRef"
+        },
+        "refs": {
+          "description": "Optional — external documents/links.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/externalRef" }
+        },
+        "async": {
+          "description": "Optional — true for an asynchronous call (rendered with an open arrowhead). Default false (synchronous, solid arrow).",
+          "type": "boolean",
+          "default": false
+        },
+        "children": {
+          "description": "Optional — calls made during this call's activation (nested deeper). Pre-order over children continues the chronological sequence.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/call" }
+        }
+      }
+    },
+    "ioField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "description": "Field name (e.g. 'amount').", "type": "string", "minLength": 1 },
+        "type": { "description": "Optional type (e.g. 'number', 'Card').", "type": "string" }
+      }
+    },
+    "sourceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "file": { "description": "Path to the source file.", "type": "string" },
+        "symbol": { "description": "Function / method / class.", "type": "string" },
+        "line": { "description": "Line number.", "type": "integer", "minimum": 1 }
+      }
+    },
+    "externalRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "url"],
+      "properties": {
+        "label": { "description": "Human label for the link.", "type": "string", "minLength": 1 },
+        "url": { "description": "URL or document reference.", "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

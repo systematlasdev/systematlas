@@ -1,0 +1,6 @@
+{
+  "title": "mdsite demo",
+  "baseUrl": "/",
+  "srcDir": "content",
+  "outDir": "site"
+}

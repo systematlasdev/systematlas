@@ -1,0 +1,17 @@
+{
+  "name": "mdsite",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A tiny zero-dependency static site generator — demo project for flow-trace.",
+  "type": "module",
+  "bin": {
+    "mdsite": "src/cli.js"
+  },
+  "scripts": {
+    "build": "node src/cli.js build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

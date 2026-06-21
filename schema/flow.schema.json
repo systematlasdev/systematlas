@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flow-trace.dev/schema/flow.schema.json",
+  "title": "flow-trace Flow document",
+  "description": "Object model for the Flow mode (high-level, abstract view). A single *.flow.json file is one Flow document. The Trace mode (low-level) extends this in a later schema version with source refs, request/response and params.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "id", "title", "actors", "nodes", "edges"],
+  "properties": {
+    "$schema": {
+      "description": "Optional pointer to this schema for editor/IDE validation. Ignored by flow-trace.",
+      "type": "string"
+    },
+    "version": {
+      "description": "Schema version of this document, for migrations.",
+      "enum": ["1"]
+    },
+    "id": {
+      "description": "Identity of THIS flow. Workspace-unique. Stable, scoped id (e.g. 'transaction-create'), not a display label.",
+      "$ref": "#/$defs/scopedId"
+    },
+    "title": {
+      "description": "Human-readable title of the flow (display only).",
+      "type": "string",
+      "minLength": 1
+    },
+    "layout": {
+      "description": "Auto-layout direction. TB = top-to-bottom, LR = left-to-right.",
+      "enum": ["TB", "LR"],
+      "default": "TB"
+    },
+    "overview": {
+      "description": "Optional document-level overview — general information about this flow, as paragraphs (one per array item). Shown in the bottom Overview bar.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "actors": {
+      "description": "Owners/participants. Every participant, human AND system. Each node references one actor as its owner (drives node color + legend).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/actor" }
+    },
+    "nodes": {
+      "description": "The steps of the flow.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "edges": {
+      "description": "Directed connections between nodes.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/edge" }
+    }
+  },
+  "$defs": {
+    "scopedId": {
+      "description": "Stable, scoped identifier: lowercase alphanumerics with '.', '_' or '-' as separators (e.g. 'txn.charge', 'charge-detail'). This is identity, NOT the display label.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+([._-][a-z0-9]+)*$"
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "kind"],
+      "properties": {
+        "id": {
+          "description": "Actor identity, referenced by node.owner.",
+          "$ref": "#/$defs/scopedId"
+        },
+        "label": {
+          "description": "Display name (e.g. 'Payment Gateway').",
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "description": "Nature of the participant. human = external user/operator; system = external system/remote API; service = internal component/service; infra = database/queue/cache.",
+          "enum": ["human", "system", "service", "infra"]
+        },
+        "color": {
+          "description": "Optional explicit node color for this actor (hex). If omitted, an auto-palette is used that avoids red/green as accidental success/error signals.",
+          "type": "string",
+          "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$"
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "label", "description"],
+      "properties": {
+        "id": {
+          "description": "Node identity. By DEFAULT file-local (per-flow): the same id in two different flow files does NOT collide — flows are isolated namespaces. Set 'shared': true to flip this id into the workspace-global namespace.",
+          "$ref": "#/$defs/scopedId"
+        },
+        "type": {
+          "description": "terminal = flow start/end (capsule); step = action (rounded rect); decision = branch/if (diamond); subflow = drills down into another flow (double-border + ⊕); io = data in/out (parallelogram).",
+          "enum": ["terminal", "step", "decision", "subflow", "io"]
+        },
+        "label": {
+          "description": "Display text (e.g. 'Charge payment'). Two nodes may share a label as long as their ids differ — the system never confuses them.",
+          "type": "string",
+          "minLength": 1
+        },
+        "owner": {
+          "description": "Reference to actors[].id — who performs this step. Drives node color. Optional for type:terminal.",
+          "$ref": "#/$defs/scopedId"
+        },
+        "description": {
+          "description": "What this step does, as a LIST OF POINTS — one thesis per array element (rendered as bullets). Required, at least one point. Detail depth is the author's call, guided by the user and flow-trace://guide. Do NOT cram multiple theses into one string; split them into separate items.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        },
+        "inputs": {
+          "description": "Optional — what the step receives.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/ioField" }
+        },
+        "outputs": {
+          "description": "Optional — what the step returns/produces.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/ioField" }
+        },
+        "source": {
+          "description": "Optional — a code reference for this step (file / symbol / line).",
+          "$ref": "#/$defs/sourceRef"
+        },
+        "refs": {
+          "description": "Optional — external documents/links (useful when describing a global system rather than concrete code).",
+          "type": "array",
+          "items": { "$ref": "#/$defs/externalRef" }
+        },
+        "shared": {
+          "description": "Opt-in cross-flow identity (the hybrid model). When true, this node's id lives in the workspace-global namespace: the same shared id in other flows refers to the SAME object (enables cross-flow tracing/consistency). Default false = per-flow local.",
+          "type": "boolean",
+          "default": false
+        },
+        "subflow": {
+          "description": "For type:subflow only — the id of the flow that this node drills down into (optional depth / nested mode).",
+          "$ref": "#/$defs/scopedId"
+        },
+        "sequence": {
+          "description": "Optional drill-down into a Sequence document (low-level execution sequence) describing how this step runs. Opened the same way as a subflow.",
+          "$ref": "#/$defs/scopedId"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "subflow" } } },
+          "then": { "required": ["subflow"] },
+          "else": { "not": { "required": ["subflow"] } }
+        }
+      ]
+    },
+    "edge": {
+      "description": "A directed connection. An edge is a first-class object like a node: it may carry the same optional content (description, inputs/outputs, source, refs) and drill down into a sub-flow describing how the transition happens.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "type"],
+      "properties": {
+        "id": {
+          "description": "Optional edge identity. Lives in the SAME object-id namespace as nodes (must be unique across nodes+edges in this flow). Required only if you select/drill/share this edge. Set 'shared': true to make it workspace-global like a shared node.",
+          "$ref": "#/$defs/scopedId"
+        },
+        "from": {
+          "description": "Source node id.",
+          "$ref": "#/$defs/scopedId"
+        },
+        "to": {
+          "description": "Target node id.",
+          "$ref": "#/$defs/scopedId"
+        },
+        "type": {
+          "description": "flow = next step (solid arrow); branch = labeled exit from a decision (solid arrow + label); return = return/loop back (dashed curved arrow).",
+          "enum": ["flow", "branch", "return"]
+        },
+        "label": {
+          "description": "Edge label. Primarily for type:branch (the condition, e.g. 'yes' / 'amount > 0').",
+          "type": "string"
+        },
+        "description": {
+          "description": "Optional — what happens during this transition, as a LIST OF POINTS (one thesis per item, rendered as bullets). Unlike a node's description this is optional.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        },
+        "inputs": {
+          "description": "Optional — what flows across this edge.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/ioField" }
+        },
+        "outputs": {
+          "description": "Optional — what the transition produces.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/ioField" }
+        },
+        "source": {
+          "description": "Optional — a code reference for this transition (file / symbol / line).",
+          "$ref": "#/$defs/sourceRef"
+        },
+        "refs": {
+          "description": "Optional — external documents/links for this transition.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/externalRef" }
+        },
+        "shared": {
+          "description": "Opt-in cross-flow identity (same as a node's). When true, this edge's id is workspace-global: the same shared id elsewhere refers to the SAME object. Requires id. Default false.",
+          "type": "boolean",
+          "default": false
+        },
+        "subflow": {
+          "description": "Optional drill-down — the id of a flow that describes the full process of getting from 'from' to 'to'. Opened the same way as a subflow node.",
+          "$ref": "#/$defs/scopedId"
+        },
+        "sequence": {
+          "description": "Optional drill-down into a Sequence document (low-level execution sequence) for this transition.",
+          "$ref": "#/$defs/scopedId"
+        }
+      }
+    },
+    "ioField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "description": "Field name (e.g. 'amount').", "type": "string", "minLength": 1 },
+        "type": { "description": "Optional type (e.g. 'number', 'CreateTxDTO').", "type": "string" }
+      }
+    },
+    "sourceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "file": { "description": "Path to the source file (e.g. 'src/adapters/payment.ts').", "type": "string" },
+        "symbol": { "description": "Function / method / class (e.g. 'PaymentAdapter.charge').", "type": "string" },
+        "line": { "description": "Line number.", "type": "integer", "minimum": 1 }
+      }
+    },
+    "externalRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "url"],
+      "properties": {
+        "label": { "description": "Human label for the link.", "type": "string", "minLength": 1 },
+        "url": { "description": "URL or document reference.", "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

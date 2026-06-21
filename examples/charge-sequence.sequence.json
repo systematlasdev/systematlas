@@ -1,0 +1,83 @@
+{
+  "$schema": "../schema/sequence.schema.json",
+  "version": "1",
+  "kind": "sequence",
+  "id": "charge-sequence",
+  "title": "Charge — execution sequence",
+  "actors": [
+    { "id": "api", "label": "Transaction API", "kind": "service" },
+    { "id": "payment", "label": "Payment Gateway", "kind": "system" },
+    { "id": "bank", "label": "Acquiring Bank", "kind": "system" }
+  ],
+  "phases": [
+    { "id": "authorize", "label": "Authorize" },
+    { "id": "capture", "label": "Capture" }
+  ],
+  "calls": [
+    {
+      "id": "charge",
+      "from": "api",
+      "to": "payment",
+      "method": "PaymentAdapter.charge",
+      "description": ["Authorizes then captures funds for the transaction.", "Returns a ChargeResult to the caller."],
+      "params": [
+        { "name": "amount", "type": "number" },
+        { "name": "card", "type": "Card" }
+      ],
+      "returnType": "ChargeResult",
+      "source": { "file": "src/adapters/payment.ts", "symbol": "PaymentAdapter.charge", "line": 88 },
+      "children": [
+        {
+          "id": "authorize",
+          "from": "payment",
+          "to": "bank",
+          "method": "POST /authorize",
+          "phase": "authorize",
+          "description": ["Places an authorization hold with the acquiring bank."],
+          "request": "POST /authorize { amount, currency, card }",
+          "response": "{ authId, status }",
+          "returns": [{ "name": "authId", "type": "string" }],
+          "source": { "file": "src/adapters/payment.ts", "symbol": "authorize", "line": 64 }
+        },
+        {
+          "id": "assert.auth",
+          "from": "payment",
+          "to": "payment",
+          "method": "assertAuthorized",
+          "phase": "authorize",
+          "description": ["Throws if the hold was declined.", "Self-call — inline guard."],
+          "source": { "file": "src/adapters/payment.ts", "symbol": "assertAuthorized", "line": 120 }
+        },
+        {
+          "id": "capture",
+          "from": "payment",
+          "to": "bank",
+          "method": "POST /capture",
+          "phase": "capture",
+          "description": ["Captures the previously authorized amount."],
+          "request": "POST /capture { authId }",
+          "response": "{ captureId, status }",
+          "returns": [
+            { "name": "captureId", "type": "string" },
+            { "name": "status", "type": "ChargeStatus" }
+          ],
+          "source": { "file": "src/adapters/payment.ts", "symbol": "capture", "line": 102 }
+        }
+      ]
+    },
+    {
+      "id": "persist.result",
+      "from": "api",
+      "to": "api",
+      "method": "buildChargeResult",
+      "phase": "capture",
+      "description": ["Assembles the ChargeResult returned to the create-transaction flow."],
+      "params": [
+        { "name": "captureId", "type": "string" },
+        { "name": "status", "type": "ChargeStatus" }
+      ],
+      "returnType": "ChargeResult",
+      "source": { "file": "src/tx/service.ts", "symbol": "buildChargeResult", "line": 51 }
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "$schema": "../schema/flow.schema.json",
+  "version": "1",
+  "id": "payment-charge",
+  "title": "Charge payment",
+  "layout": "TB",
+  "actors": [
+    { "id": "api", "label": "Transaction API", "kind": "service" },
+    { "id": "payment", "label": "Payment Gateway", "kind": "system" },
+    { "id": "bank", "label": "Acquiring Bank", "kind": "system" }
+  ],
+  "nodes": [
+    { "id": "start", "type": "terminal", "label": "Start", "description": ["Entry point of the charge sub-flow."] },
+    {
+      "id": "pc.authorize",
+      "type": "step",
+      "label": "Authorize",
+      "owner": "payment",
+      "description": [
+        "Sends an authorization request to the gateway.",
+        "Reserves the amount on the card without capturing it yet."
+      ],
+      "inputs": [
+        { "name": "amount", "type": "number" },
+        { "name": "card", "type": "Card" }
+      ],
+      "source": { "file": "src/adapters/payment.ts", "symbol": "PaymentAdapter.authorize", "line": 64 }
+    },
+    {
+      "id": "pc.bank",
+      "type": "step",
+      "label": "Bank authorization",
+      "owner": "bank",
+      "description": ["Acquiring bank approves or rejects the authorization hold."]
+    },
+    {
+      "id": "pc.check",
+      "type": "decision",
+      "label": "authorized?",
+      "owner": "payment",
+      "description": ["Branches on the authorization outcome.", "Transient failures are retried once."]
+    },
+    {
+      "id": "pc.capture",
+      "type": "step",
+      "label": "Capture funds",
+      "owner": "payment",
+      "description": ["Captures the previously authorized amount."],
+      "sequence": "charge-sequence",
+      "source": { "file": "src/adapters/payment.ts", "symbol": "PaymentAdapter.capture", "line": 102 }
+    },
+    {
+      "id": "pc.decline",
+      "type": "step",
+      "label": "Decline charge",
+      "owner": "api",
+      "description": ["Marks the charge as declined and surfaces the reason."]
+    },
+    {
+      "id": "pc.result",
+      "type": "io",
+      "label": "ChargeResult",
+      "owner": "api",
+      "description": ["The result emitted back to the parent flow before persistence."],
+      "outputs": [
+        { "name": "chargeId", "type": "string" },
+        { "name": "status", "type": "ChargeStatus" }
+      ]
+    },
+    { "id": "done", "type": "terminal", "label": "Done", "description": ["Sub-flow complete."] }
+  ],
+  "edges": [
+    { "from": "start", "to": "pc.authorize", "type": "flow" },
+    { "from": "pc.authorize", "to": "pc.bank", "type": "flow" },
+    { "from": "pc.bank", "to": "pc.check", "type": "flow" },
+    { "from": "pc.check", "to": "pc.capture", "type": "branch", "label": "yes" },
+    { "from": "pc.check", "to": "pc.decline", "type": "branch", "label": "no" },
+    { "from": "pc.check", "to": "pc.authorize", "type": "return", "label": "retry once" },
+    { "from": "pc.capture", "to": "pc.result", "type": "flow" },
+    { "from": "pc.decline", "to": "pc.result", "type": "flow" },
+    { "from": "pc.result", "to": "done", "type": "flow" }
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "$schema": "../schema/flow.schema.json",
+  "version": "1",
+  "id": "transaction-create",
+  "title": "Create transaction",
+  "layout": "TB",
+  "overview": [
+    "Creates a payment transaction: the user submits a request, the API validates it, funds are charged through the payment gateway, and the transaction is persisted.",
+    "The Charge payment step drills into its own sub-flow (payment-charge), which in turn links to the low-level execution sequence (charge-sequence)."
+  ],
+  "actors": [
+    { "id": "user", "label": "User", "kind": "human" },
+    { "id": "api", "label": "Transaction API", "kind": "service" },
+    { "id": "payment", "label": "Payment Gateway", "kind": "system" },
+    { "id": "db", "label": "Database", "kind": "infra" }
+  ],
+  "nodes": [
+    { "id": "start", "type": "terminal", "label": "Start", "description": ["Entry point of the flow."] },
+    {
+      "id": "submit",
+      "type": "step",
+      "label": "Submit request",
+      "owner": "user",
+      "description": ["User submits the CreateTxDTO form.", "Amount and currency are required."]
+    },
+    {
+      "id": "validate",
+      "type": "step",
+      "label": "Validate request",
+      "owner": "api",
+      "description": ["Checks limits and currency.", "Rejects out-of-range amounts."],
+      "source": { "file": "src/tx/controller.ts", "symbol": "TxService.validate", "line": 42 }
+    },
+    {
+      "id": "check.amount",
+      "type": "decision",
+      "label": "amount > 0?",
+      "owner": "api",
+      "description": ["Branches on whether the amount is positive."]
+    },
+    {
+      "id": "charge",
+      "type": "subflow",
+      "label": "Charge payment",
+      "owner": "payment",
+      "shared": true,
+      "subflow": "payment-charge",
+      "description": [
+        "Calls the payment gateway to authorize and capture funds.",
+        "Retries once on transient failure.",
+        "Emits a charge result before the row is persisted."
+      ],
+      "inputs": [
+        { "name": "amount", "type": "number" },
+        { "name": "card", "type": "Card" }
+      ],
+      "outputs": [
+        { "name": "chargeId", "type": "string" },
+        { "name": "status", "type": "ChargeStatus" }
+      ],
+      "source": { "file": "src/adapters/payment.ts", "symbol": "PaymentAdapter.charge", "line": 88 },
+      "refs": [{ "label": "Payment gateway API docs", "url": "https://example.com/payments/api" }]
+    },
+    {
+      "id": "insert",
+      "type": "step",
+      "label": "Insert transaction",
+      "owner": "db",
+      "description": ["Persists the transaction row."],
+      "source": { "file": "src/tx/repository.ts", "symbol": "TxRepository.insert" }
+    },
+    {
+      "id": "reject",
+      "type": "step",
+      "label": "Reject",
+      "owner": "api",
+      "description": ["Returns a validation error to the caller."]
+    },
+    { "id": "done", "type": "terminal", "label": "Done", "description": ["Flow complete."] }
+  ],
+  "edges": [
+    { "from": "start", "to": "submit", "type": "flow" },
+    {
+      "from": "submit",
+      "to": "validate",
+      "type": "flow",
+      "description": ["The submitted CreateTxDTO is handed to the API for validation."]
+    },
+    { "from": "validate", "to": "check.amount", "type": "flow" },
+    {
+      "id": "to-charge",
+      "from": "check.amount",
+      "to": "charge",
+      "type": "branch",
+      "label": "yes",
+      "description": [
+        "Amount is positive → proceed to charge.",
+        "Carries the validated amount and card into the charge sub-process."
+      ],
+      "inputs": [
+        { "name": "amount", "type": "number" },
+        { "name": "card", "type": "Card" }
+      ],
+      "subflow": "payment-charge"
+    },
+    { "from": "check.amount", "to": "reject", "type": "branch", "label": "no" },
+    { "from": "charge", "to": "insert", "type": "flow" },
+    { "from": "insert", "to": "done", "type": "flow" },
+    { "from": "reject", "to": "done", "type": "flow" }
+  ]
+}

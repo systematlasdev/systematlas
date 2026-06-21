@@ -1,0 +1,168 @@
+{
+  "$schema": "../schema/sequence.schema.json",
+  "version": "1",
+  "kind": "sequence",
+  "id": "checkout-sequence",
+  "title": "Order checkout — execution sequence",
+  "overview": [
+    "Full checkout path: validate the cart, reserve inventory, charge the customer, then persist the order.",
+    "Demonstrates return replies, reused methods (Database.query ×3, AuditLog.record ×3, Database.execute ×2), and caller/callee navigation."
+  ],
+  "actors": [
+    { "id": "api", "label": "Order API", "kind": "service" },
+    { "id": "inventory", "label": "Inventory Service", "kind": "system" },
+    { "id": "payment", "label": "Payment Gateway", "kind": "system" },
+    { "id": "db", "label": "Database", "kind": "infra" },
+    { "id": "audit", "label": "Audit Log", "kind": "infra" }
+  ],
+  "phases": [
+    { "id": "validate", "label": "Validate" },
+    { "id": "reserve", "label": "Reserve" },
+    { "id": "charge", "label": "Charge" },
+    { "id": "finalize", "label": "Finalize" }
+  ],
+  "calls": [
+    {
+      "id": "checkout",
+      "to": "api",
+      "method": "OrderService.checkout",
+      "phase": "validate",
+      "description": ["Entry point — orchestrates the whole checkout.", "Returns an OrderResult to the caller."],
+      "params": [{ "name": "cartId", "type": "string" }],
+      "returnType": "OrderResult",
+      "source": { "file": "src/order/service.ts", "symbol": "checkout", "line": 30 },
+      "children": [
+        {
+          "id": "validate-cart",
+          "from": "api",
+          "to": "api",
+          "method": "validateCart",
+          "phase": "validate",
+          "description": ["Self-call — guards an empty or stale cart."],
+          "source": { "file": "src/order/service.ts", "symbol": "validateCart", "line": 72 }
+        },
+        {
+          "id": "q-loadcart",
+          "from": "api",
+          "to": "db",
+          "method": "Database.query",
+          "phase": "validate",
+          "description": ["Loads the cart line items."],
+          "request": "SELECT * FROM cart_items WHERE cart_id = $1",
+          "returns": [{ "name": "rows", "type": "CartItem[]" }],
+          "source": { "file": "src/db/client.ts", "symbol": "query", "line": 42 }
+        },
+        {
+          "id": "a-validate",
+          "from": "api",
+          "to": "audit",
+          "method": "AuditLog.record",
+          "phase": "validate",
+          "description": ["Records that checkout started."],
+          "params": [{ "name": "event", "type": "string" }],
+          "source": { "file": "src/audit/log.ts", "symbol": "record", "line": 18 }
+        },
+        {
+          "id": "reserve",
+          "from": "api",
+          "to": "inventory",
+          "method": "Inventory.reserve",
+          "phase": "reserve",
+          "description": ["Reserves stock for every line item."],
+          "params": [{ "name": "items", "type": "CartItem[]" }],
+          "returnType": "ReservationId",
+          "source": { "file": "src/inventory/service.ts", "symbol": "reserve", "line": 50 },
+          "children": [
+            {
+              "id": "q-checkstock",
+              "from": "inventory",
+              "to": "db",
+              "method": "Database.query",
+              "phase": "reserve",
+              "description": ["Reads current stock levels."],
+              "request": "SELECT sku, qty FROM stock WHERE sku = ANY($1)",
+              "returns": [{ "name": "rows", "type": "StockRow[]" }],
+              "source": { "file": "src/db/client.ts", "symbol": "query", "line": 42 }
+            },
+            {
+              "id": "e-decrement",
+              "from": "inventory",
+              "to": "db",
+              "method": "Database.execute",
+              "phase": "reserve",
+              "description": ["Decrements reserved quantities."],
+              "request": "UPDATE stock SET qty = qty - $2 WHERE sku = $1",
+              "returns": [{ "name": "ok", "type": "boolean" }],
+              "source": { "file": "src/db/client.ts", "symbol": "execute", "line": 55 }
+            }
+          ]
+        },
+        {
+          "id": "a-reserve",
+          "from": "api",
+          "to": "audit",
+          "method": "AuditLog.record",
+          "phase": "reserve",
+          "description": ["Records the reservation."],
+          "params": [{ "name": "event", "type": "string" }],
+          "source": { "file": "src/audit/log.ts", "symbol": "record", "line": 18 }
+        },
+        {
+          "id": "charge",
+          "from": "api",
+          "to": "payment",
+          "method": "Payment.charge",
+          "phase": "charge",
+          "async": true,
+          "description": ["Charges the customer asynchronously.", "Returns a ChargeResult."],
+          "params": [{ "name": "amount", "type": "number" }],
+          "returnType": "ChargeResult",
+          "source": { "file": "src/payment/gateway.ts", "symbol": "charge", "line": 88 },
+          "children": [
+            {
+              "id": "assert-config",
+              "from": "payment",
+              "to": "payment",
+              "method": "assertConfigured",
+              "phase": "charge",
+              "description": ["Self-call — throws if no merchant key is set."],
+              "source": { "file": "src/payment/gateway.ts", "symbol": "assertConfigured", "line": 120 }
+            },
+            {
+              "id": "e-capture",
+              "from": "payment",
+              "to": "db",
+              "method": "Database.execute",
+              "phase": "charge",
+              "description": ["Writes the captured payment row."],
+              "request": "INSERT INTO payments (...) VALUES (...)",
+              "returns": [{ "name": "ok", "type": "boolean" }],
+              "source": { "file": "src/db/client.ts", "symbol": "execute", "line": 55 }
+            }
+          ]
+        },
+        {
+          "id": "a-charge",
+          "from": "api",
+          "to": "audit",
+          "method": "AuditLog.record",
+          "phase": "charge",
+          "description": ["Records the successful charge."],
+          "params": [{ "name": "event", "type": "string" }],
+          "source": { "file": "src/audit/log.ts", "symbol": "record", "line": 18 }
+        },
+        {
+          "id": "q-persist",
+          "from": "api",
+          "to": "db",
+          "method": "Database.query",
+          "phase": "finalize",
+          "description": ["Persists the finalized order."],
+          "request": "INSERT INTO orders (...) RETURNING *",
+          "returns": [{ "name": "rows", "type": "Order[]" }],
+          "source": { "file": "src/db/client.ts", "symbol": "query", "line": 42 }
+        }
+      ]
+    }
+  ]
+}

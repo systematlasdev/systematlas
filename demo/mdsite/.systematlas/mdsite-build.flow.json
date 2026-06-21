@@ -1,0 +1,179 @@
+{
+  "version": "1",
+  "id": "mdsite-build",
+  "title": "mdsite — build pipeline",
+  "layout": "TB",
+  "overview": [
+    "How `mdsite build` turns a folder of Markdown into a static site: load config, discover content, render each page, copy assets, and emit a sitemap. Each boxed step opens its own diagram (Open); 'Render Markdown' inside 'Build pages' drills down to the exact call trace."
+  ],
+  "actors": [
+    {
+      "id": "cli",
+      "label": "CLI",
+      "kind": "system"
+    },
+    {
+      "id": "builder",
+      "label": "Builder",
+      "kind": "system"
+    },
+    {
+      "id": "config",
+      "label": "Config",
+      "kind": "service"
+    },
+    {
+      "id": "pages",
+      "label": "Page pipeline",
+      "kind": "service"
+    },
+    {
+      "id": "assets",
+      "label": "Assets",
+      "kind": "service"
+    },
+    {
+      "id": "sitemap",
+      "label": "Sitemap",
+      "kind": "service"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "type": "terminal",
+      "label": "mdsite build",
+      "description": [
+        "Entry point: the CLI parses args and calls build()."
+      ],
+      "source": {
+        "file": "src/cli.js",
+        "symbol": "cli",
+        "line": 1
+      }
+    },
+    {
+      "id": "load_config",
+      "type": "subflow",
+      "label": "Load config",
+      "description": [
+        "Resolve the effective config: defaults, then mdsite.config.json, then CLI flags.",
+        "Open to see the merge + validation steps."
+      ],
+      "owner": "config",
+      "subflow": "load-config",
+      "source": {
+        "file": "src/config.js",
+        "symbol": "loadConfig",
+        "line": 14
+      }
+    },
+    {
+      "id": "discover",
+      "type": "step",
+      "label": "Discover content",
+      "description": [
+        "Recursively collect every *.md file under the source directory."
+      ],
+      "owner": "builder",
+      "outputs": [
+        {
+          "name": "files",
+          "type": "string[]"
+        }
+      ],
+      "source": {
+        "file": "src/discover.js",
+        "symbol": "discover",
+        "line": 6
+      }
+    },
+    {
+      "id": "build_pages",
+      "type": "subflow",
+      "label": "Build pages",
+      "description": [
+        "For each discovered Markdown file, run the per-page pipeline.",
+        "Open to see read → frontmatter → render → layout → write."
+      ],
+      "owner": "pages",
+      "subflow": "build-page",
+      "source": {
+        "file": "src/build.js",
+        "symbol": "build",
+        "line": 13
+      }
+    },
+    {
+      "id": "copy_assets",
+      "type": "subflow",
+      "label": "Copy assets",
+      "description": [
+        "Copy every non-Markdown file (CSS, images, …) verbatim into the output tree.",
+        "Open to see the walk + per-file decision."
+      ],
+      "owner": "assets",
+      "subflow": "copy-assets",
+      "source": {
+        "file": "src/assets.js",
+        "symbol": "copyAssets",
+        "line": 6
+      }
+    },
+    {
+      "id": "write_sitemap",
+      "type": "step",
+      "label": "Write sitemap",
+      "description": [
+        "Emit sitemap.xml with one absolute URL per built page."
+      ],
+      "owner": "sitemap",
+      "source": {
+        "file": "src/sitemap.js",
+        "symbol": "writeSitemap",
+        "line": 7
+      }
+    },
+    {
+      "id": "done",
+      "type": "terminal",
+      "label": "Site ready",
+      "description": [
+        "All pages, assets and the sitemap are written to the output directory."
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "start",
+      "to": "load_config",
+      "type": "flow"
+    },
+    {
+      "from": "load_config",
+      "to": "discover",
+      "type": "flow"
+    },
+    {
+      "from": "discover",
+      "to": "build_pages",
+      "type": "flow",
+      "label": "for each page"
+    },
+    {
+      "from": "build_pages",
+      "to": "copy_assets",
+      "type": "flow"
+    },
+    {
+      "from": "copy_assets",
+      "to": "write_sitemap",
+      "type": "flow"
+    },
+    {
+      "from": "write_sitemap",
+      "to": "done",
+      "type": "flow"
+    }
+  ]
+}

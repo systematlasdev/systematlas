@@ -1,0 +1,128 @@
+{
+  "version": "1",
+  "id": "load-config",
+  "title": "Load config",
+  "layout": "TB",
+  "overview": [
+    "Resolve the effective configuration by layering sources and validating the result before the build proceeds."
+  ],
+  "actors": [
+    {
+      "id": "config",
+      "label": "Config",
+      "kind": "service"
+    },
+    {
+      "id": "fs",
+      "label": "Filesystem",
+      "kind": "infra"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "type": "terminal",
+      "label": "Load config",
+      "description": [
+        "Begin resolving config for this build."
+      ],
+      "source": {
+        "file": "src/config.js",
+        "symbol": "loadConfig",
+        "line": 14
+      }
+    },
+    {
+      "id": "defaults",
+      "type": "step",
+      "label": "Start from defaults",
+      "description": [
+        "Built-in defaults: title, baseUrl '/', srcDir 'content', outDir 'site'."
+      ],
+      "owner": "config"
+    },
+    {
+      "id": "read_file",
+      "type": "io",
+      "label": "Read mdsite.config.json",
+      "description": [
+        "Read the optional project config; missing file is fine (use defaults)."
+      ],
+      "owner": "fs"
+    },
+    {
+      "id": "merge",
+      "type": "step",
+      "label": "Merge file + CLI overrides",
+      "description": [
+        "Layer order: defaults ← config file ← CLI flags."
+      ],
+      "owner": "config",
+      "outputs": [
+        {
+          "name": "cfg"
+        }
+      ]
+    },
+    {
+      "id": "validate",
+      "type": "decision",
+      "label": "Valid?",
+      "description": [
+        "baseUrl must be root-relative or absolute; srcDir/outDir required."
+      ],
+      "owner": "config"
+    },
+    {
+      "id": "error",
+      "type": "terminal",
+      "label": "Throw config error",
+      "description": [
+        "Reject the build with a clear message."
+      ]
+    },
+    {
+      "id": "done",
+      "type": "terminal",
+      "label": "Config ready",
+      "description": [
+        "Return the validated config object."
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "start",
+      "to": "defaults",
+      "type": "flow"
+    },
+    {
+      "from": "defaults",
+      "to": "read_file",
+      "type": "flow"
+    },
+    {
+      "from": "read_file",
+      "to": "merge",
+      "type": "flow",
+      "label": "file or {}"
+    },
+    {
+      "from": "merge",
+      "to": "validate",
+      "type": "flow"
+    },
+    {
+      "from": "validate",
+      "to": "error",
+      "type": "branch",
+      "label": "invalid"
+    },
+    {
+      "from": "validate",
+      "to": "done",
+      "type": "branch",
+      "label": "valid"
+    }
+  ]
+}

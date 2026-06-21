@@ -1,0 +1,271 @@
+{
+  "version": "1",
+  "kind": "sequence",
+  "id": "render-markdown",
+  "title": "Render Markdown → HTML",
+  "overview": [
+    "The exact call trace of rendering one page body: tokenize the Markdown, then render each block. The inline renderer reuses two shared helpers — escapeHtml (×3) and resolveLink (×2) — which flow-trace flags with reuse badges."
+  ],
+  "actors": [
+    {
+      "id": "builder",
+      "label": "PageBuilder",
+      "kind": "system"
+    },
+    {
+      "id": "renderer",
+      "label": "MarkdownRenderer",
+      "kind": "service"
+    },
+    {
+      "id": "tokenizer",
+      "label": "Tokenizer",
+      "kind": "service"
+    },
+    {
+      "id": "inline",
+      "label": "InlineRenderer",
+      "kind": "service"
+    },
+    {
+      "id": "html",
+      "label": "HtmlHelpers",
+      "kind": "infra"
+    }
+  ],
+  "phases": [
+    {
+      "id": "tokenize",
+      "label": "Tokenize"
+    },
+    {
+      "id": "blocks",
+      "label": "Render blocks"
+    }
+  ],
+  "calls": [
+    {
+      "id": "c1",
+      "from": "builder",
+      "to": "renderer",
+      "method": "renderMarkdown(body, baseUrl)",
+      "phase": "tokenize",
+      "description": [
+        "Entry: render a page body to HTML."
+      ],
+      "params": [
+        {
+          "name": "body",
+          "type": "string"
+        },
+        {
+          "name": "baseUrl",
+          "type": "string"
+        }
+      ],
+      "returnType": "string",
+      "source": {
+        "file": "src/markdown.js",
+        "symbol": "renderMarkdown",
+        "line": 81
+      },
+      "children": [
+        {
+          "id": "c2",
+          "from": "renderer",
+          "to": "tokenizer",
+          "method": "tokenize(md)",
+          "phase": "tokenize",
+          "description": [
+            "Split the source into heading / list / paragraph block tokens."
+          ],
+          "returns": [
+            {
+              "name": "result",
+              "type": "Token[]"
+            }
+          ],
+          "source": {
+            "file": "src/markdown.js",
+            "symbol": "tokenize",
+            "line": 8
+          }
+        },
+        {
+          "id": "c3",
+          "from": "renderer",
+          "to": "renderer",
+          "method": "renderToken(heading)",
+          "phase": "blocks",
+          "description": [
+            "Render a heading block."
+          ],
+          "source": {
+            "file": "src/markdown.js",
+            "symbol": "renderToken",
+            "line": 44
+          },
+          "children": [
+            {
+              "id": "c4",
+              "from": "renderer",
+              "to": "inline",
+              "method": "renderInline(text, baseUrl)",
+              "description": [
+                "Render inline content of the heading."
+              ],
+              "source": {
+                "file": "src/markdown.js",
+                "symbol": "renderInline",
+                "line": 58
+              },
+              "children": [
+                {
+                  "id": "c5",
+                  "from": "inline",
+                  "to": "html",
+                  "method": "escapeHtml(text)",
+                  "description": [
+                    "Escape the heading text."
+                  ],
+                  "returnType": "string",
+                  "source": {
+                    "file": "src/html.js",
+                    "symbol": "escapeHtml",
+                    "line": 8
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "c6",
+          "from": "renderer",
+          "to": "renderer",
+          "method": "renderToken(paragraph)",
+          "phase": "blocks",
+          "description": [
+            "Render a paragraph that contains a link."
+          ],
+          "source": {
+            "file": "src/markdown.js",
+            "symbol": "renderToken",
+            "line": 44
+          },
+          "children": [
+            {
+              "id": "c7",
+              "from": "renderer",
+              "to": "inline",
+              "method": "renderInline(text, baseUrl)",
+              "description": [
+                "Render inline content; finds a [text](href) link."
+              ],
+              "source": {
+                "file": "src/markdown.js",
+                "symbol": "renderInline",
+                "line": 58
+              },
+              "children": [
+                {
+                  "id": "c8",
+                  "from": "inline",
+                  "to": "html",
+                  "method": "resolveLink(href, baseUrl)",
+                  "description": [
+                    "Resolve the link target (.md → .html, root-relative)."
+                  ],
+                  "returnType": "string",
+                  "source": {
+                    "file": "src/html.js",
+                    "symbol": "resolveLink",
+                    "line": 15
+                  }
+                },
+                {
+                  "id": "c9",
+                  "from": "inline",
+                  "to": "html",
+                  "method": "escapeHtml(href)",
+                  "description": [
+                    "Escape the resolved href for the attribute."
+                  ],
+                  "returnType": "string",
+                  "source": {
+                    "file": "src/html.js",
+                    "symbol": "escapeHtml",
+                    "line": 8
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "c10",
+          "from": "renderer",
+          "to": "renderer",
+          "method": "renderToken(list)",
+          "phase": "blocks",
+          "description": [
+            "Render a list whose item contains a link."
+          ],
+          "source": {
+            "file": "src/markdown.js",
+            "symbol": "renderToken",
+            "line": 44
+          },
+          "children": [
+            {
+              "id": "c11",
+              "from": "renderer",
+              "to": "inline",
+              "method": "renderInline(item, baseUrl)",
+              "description": [
+                "Render inline content of a list item."
+              ],
+              "source": {
+                "file": "src/markdown.js",
+                "symbol": "renderInline",
+                "line": 58
+              },
+              "children": [
+                {
+                  "id": "c12",
+                  "from": "inline",
+                  "to": "html",
+                  "method": "resolveLink(href, baseUrl)",
+                  "description": [
+                    "Resolve the list item's link target."
+                  ],
+                  "returnType": "string",
+                  "source": {
+                    "file": "src/html.js",
+                    "symbol": "resolveLink",
+                    "line": 15
+                  }
+                },
+                {
+                  "id": "c13",
+                  "from": "inline",
+                  "to": "html",
+                  "method": "escapeHtml(text)",
+                  "description": [
+                    "Escape the list item's text."
+                  ],
+                  "returnType": "string",
+                  "source": {
+                    "file": "src/html.js",
+                    "symbol": "escapeHtml",
+                    "line": 8
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

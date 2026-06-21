@@ -1,0 +1,79 @@
+{
+  "name": "systematlas",
+  "version": "0.1.0",
+  "description": "Visualize code flows authored by an LLM, at two altitudes (Flow + Sequence).",
+  "type": "module",
+  "license": "MIT",
+  "author": "Todor Rusev <systematlas.dev@gmail.com>",
+  "contributors": [
+    "Silviya Ruzhina <systematlas.dev@gmail.com>"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/systematlasdev/systematlas.git"
+  },
+  "homepage": "https://github.com/systematlasdev/systematlas#readme",
+  "bugs": {
+    "url": "https://github.com/systematlasdev/systematlas/issues"
+  },
+  "keywords": [
+    "flow",
+    "sequence-diagram",
+    "visualization",
+    "diagram",
+    "mcp",
+    "llm",
+    "cli"
+  ],
+  "bin": {
+    "systematlas": "dist/cli.js",
+    "sysatlas": "dist/cli.js",
+    "systematlas-mcp": "dist/mcp.js"
+  },
+  "files": [
+    "dist",
+    "dist-renderer",
+    "schema",
+    "examples",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "build:renderer": "vite build --mode singlefile",
+    "build:cli": "tsup",
+    "build": "npm run typecheck && npm run build:renderer && npm run build:cli",
+    "prepublishOnly": "npm run build",
+    "preview": "vite preview",
+    "mcp": "tsx src/mcp/server.ts",
+    "cli": "tsx src/cli/index.ts",
+    "test": "node --import tsx --test src/core/*.test.ts src/*.test.ts"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.7.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "chokidar": "^5.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/dagre": "^0.7.52",
+    "@types/node": "^25.9.3",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@xyflow/react": "^12.3.5",
+    "dagre": "^0.8.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsup": "^8.3.5",
+    "tsx": "^4.22.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}

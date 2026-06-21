@@ -1,0 +1,172 @@
+{
+  "version": "1",
+  "id": "build-page",
+  "title": "Build one page",
+  "layout": "TB",
+  "overview": [
+    "The per-page pipeline run once for every Markdown file. 'Render Markdown' drills down further into the exact call trace (a Sequence)."
+  ],
+  "actors": [
+    {
+      "id": "pages",
+      "label": "Page pipeline",
+      "kind": "service"
+    },
+    {
+      "id": "markdown",
+      "label": "Markdown renderer",
+      "kind": "service"
+    },
+    {
+      "id": "fs",
+      "label": "Filesystem",
+      "kind": "infra"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "type": "terminal",
+      "label": "Build one page",
+      "description": [
+        "Called once per discovered .md file with the resolved config."
+      ],
+      "source": {
+        "file": "src/page.js",
+        "symbol": "buildPage",
+        "line": 33
+      }
+    },
+    {
+      "id": "read",
+      "type": "io",
+      "label": "Read .md file",
+      "description": [
+        "Read the raw Markdown source from disk."
+      ],
+      "owner": "fs",
+      "outputs": [
+        {
+          "name": "raw",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "id": "frontmatter",
+      "type": "step",
+      "label": "Parse frontmatter",
+      "description": [
+        "Pull the leading `--- key: value ---` block; the rest is the body."
+      ],
+      "owner": "pages",
+      "outputs": [
+        {
+          "name": "data"
+        },
+        {
+          "name": "body",
+          "type": "string"
+        }
+      ],
+      "source": {
+        "file": "src/page.js",
+        "symbol": "parseFrontmatter",
+        "line": 9
+      }
+    },
+    {
+      "id": "render",
+      "type": "step",
+      "label": "Render Markdown",
+      "description": [
+        "Convert the body to HTML via the hand-written renderer.",
+        "Open to see the exact call trace (tokenize → render tokens → escape/resolve)."
+      ],
+      "owner": "markdown",
+      "sequence": "render-markdown",
+      "inputs": [
+        {
+          "name": "body",
+          "type": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "bodyHtml",
+          "type": "string"
+        }
+      ],
+      "source": {
+        "file": "src/markdown.js",
+        "symbol": "renderMarkdown",
+        "line": 81
+      }
+    },
+    {
+      "id": "layout",
+      "type": "step",
+      "label": "Apply layout",
+      "description": [
+        "Wrap the body HTML in the page shell; escape the page + site titles."
+      ],
+      "owner": "pages",
+      "source": {
+        "file": "src/page.js",
+        "symbol": "applyLayout",
+        "line": 22
+      }
+    },
+    {
+      "id": "write",
+      "type": "io",
+      "label": "Write .html file",
+      "description": [
+        "Write the final HTML to the output path (mirrors the source path, .md → .html)."
+      ],
+      "owner": "fs"
+    },
+    {
+      "id": "done",
+      "type": "terminal",
+      "label": "Page written",
+      "description": [
+        "Return the page metadata (used later by the sitemap)."
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "start",
+      "to": "read",
+      "type": "flow"
+    },
+    {
+      "from": "read",
+      "to": "frontmatter",
+      "type": "flow"
+    },
+    {
+      "from": "frontmatter",
+      "to": "render",
+      "type": "flow",
+      "label": "body"
+    },
+    {
+      "from": "render",
+      "to": "layout",
+      "type": "flow",
+      "label": "bodyHtml"
+    },
+    {
+      "from": "layout",
+      "to": "write",
+      "type": "flow"
+    },
+    {
+      "from": "write",
+      "to": "done",
+      "type": "flow"
+    }
+  ]
+}

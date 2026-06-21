@@ -1,0 +1,12 @@
+/* mdsite demo stylesheet (copied verbatim as an asset). */
+body {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  max-width: 42rem;
+  margin: 3rem auto;
+  padding: 0 1rem;
+  color: #2a2722;
+  line-height: 1.6;
+}
+h1 { font-weight: 800; }
+code { background: #f1eee7; padding: 0.1em 0.3em; border-radius: 4px; }
+a { color: #5e54a8; }

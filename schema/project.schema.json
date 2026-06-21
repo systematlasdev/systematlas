@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flow-trace.dev/schema/project.schema.json",
+  "title": "flow-trace project manifest",
+  "description": "Optional project manifest at <project>/.flowtrace/project.json. Indexes documents (flows + sequences) by stable id → path (relative to the project root, may point outside it) and a logical, possibly-nested category ('a/b'). If absent, flow-trace falls back to a flat folder scan.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "documents"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "description": "Manifest schema version, for migrations.", "enum": ["1"] },
+    "name": { "description": "Display name of the project.", "type": "string" },
+    "documents": {
+      "description": "Indexed documents.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "path"],
+        "properties": {
+          "id": {
+            "description": "Stable document id (matches the document's own id). Workspace-unique.",
+            "type": "string",
+            "pattern": "^[a-z0-9]+([._-][a-z0-9]+)*$"
+          },
+          "path": {
+            "description": "Path to the document file, relative to the project root. May point outside it.",
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "description": "Logical, possibly-nested category ('Payments/Internals'). Omitted = ungrouped.",
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

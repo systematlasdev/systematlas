@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dist-renderer/
+*.local
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# local-only: machine-specific MCP config + a scratch workspace for testing
+.mcp.json
+playground/

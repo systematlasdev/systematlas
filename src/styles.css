@@ -1,0 +1,434 @@
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  font-family:
+    "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: #2a2722;
+}
+
+::selection {
+  background: #e3dac6;
+}
+
+.react-flow__attribution {
+  font-size: 10px;
+  opacity: 0.5;
+}
+
+/* Selection visual lives entirely on our custom node inner elements (scale +
+   shadow). Kill React Flow's default selection outline/shadow on the wrapper. */
+.react-flow__node.selected,
+.react-flow__node:focus,
+.react-flow__node:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Detail panel resize handle — subtle accent on hover/drag. */
+.ft-resize {
+  background: transparent;
+  transition: background 0.12s ease;
+}
+.ft-resize:hover,
+.ft-resize:active {
+  background: rgba(94, 84, 168, 0.25);
+}
+
+/* Overview bar resize handle (horizontal bar, drag its top edge). */
+.ft-resize-v {
+  background: transparent;
+  transition: background 0.12s ease;
+}
+.ft-resize-v:hover,
+.ft-resize-v:active {
+  background: rgba(94, 84, 168, 0.25);
+}
+
+/* #4 — soft reveal when the flow changes (drill-down / breadcrumb / sidebar). */
+@keyframes ftCanvasIn {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.ft-canvas-in {
+  animation: ftCanvasIn 0.24s ease-out;
+}
+
+/* Surfacing (drill-up / breadcrumb back): reveal from slightly zoomed-IN → 1,
+   reading as "pulling back out". Works in Sequence view too (no RF viewport). */
+@keyframes ftCanvasOut {
+  from {
+    opacity: 0;
+    transform: scale(1.035);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.ft-canvas-out {
+  animation: ftCanvasOut 0.26s ease-out;
+}
+
+/* --- Hover states (inline styles can't do :hover, so base bg/color live here) --- */
+
+/* Quiet icon buttons (top bar, panel) */
+.ft-quiet {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #6b655b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ft-quiet:hover {
+  background: #f0eadc;
+  color: #2a2722;
+}
+
+/* Panel close/collapse buttons (lighter hover) */
+.ft-quiet-soft {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #9a9384;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ft-quiet-soft:hover {
+  background: #f4efe3;
+  color: #2a2722;
+}
+
+/* Flow list rows */
+.ft-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  background: transparent;
+  color: #6b655b;
+  font-weight: 500;
+  font-family: inherit;
+}
+.ft-row:hover {
+  background: #f1ebdc;
+}
+.ft-row-active {
+  background: #efe7d5;
+  color: #2a2722;
+  font-weight: 600;
+}
+.ft-row-active:hover {
+  background: #efe7d5;
+}
+
+/* Sidebar rail items */
+.ft-rail {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  background: transparent;
+  color: #6b655b;
+}
+.ft-rail:hover {
+  background: #f1ebdc;
+}
+.ft-rail-active {
+  background: #efe7d5;
+}
+
+/* New flow button (dashed) */
+.ft-newflow {
+  border: 1px dashed #d8cfb9;
+  background: transparent;
+  cursor: pointer;
+  color: #6b655b;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+}
+.ft-newflow:hover {
+  background: #f1ebdc;
+  border-color: #c9be9f;
+  color: #2a2722;
+}
+
+/* --- Sidebar: category tree + document rows + context menus (Etap 3) --- */
+
+/* Document row = a flex container (row bg/active) holding a main button + kebab.
+   A button can't nest a button, so the row itself is a div. */
+.ft-doc {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+}
+.ft-doc:hover {
+  background: #f1ebdc;
+}
+.ft-doc-active {
+  background: #efe7d5;
+}
+.ft-doc-active:hover {
+  background: #efe7d5;
+}
+.ft-docmain {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 34px;
+  padding: 0 4px 0 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: #6b655b;
+  font-family: inherit;
+  font-weight: 500;
+}
+.ft-doc-active .ft-docmain {
+  color: #2a2722;
+  font-weight: 600;
+}
+.ft-kebab {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  margin-right: 5px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #9a9384;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.ft-doc:hover .ft-kebab,
+.ft-doc-active .ft-kebab {
+  opacity: 1;
+}
+.ft-kebab:hover {
+  background: #e7dfce;
+  color: #2a2722;
+}
+
+/* Category group header (collapsible) — a row holding the toggle + a kebab. */
+.ft-catrow {
+  display: flex;
+  align-items: center;
+  border-radius: 7px;
+}
+.ft-catrow:hover {
+  background: #f1ebdc;
+}
+.ft-catrow:hover .ft-kebab {
+  opacity: 1;
+}
+.ft-cat {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #9a9384;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 7px;
+  text-align: left;
+}
+.ft-catrow:hover .ft-cat {
+  color: #6b655b;
+}
+.ft-cat-chev {
+  display: flex;
+  transition: transform 0.14s ease;
+}
+.ft-cat-chev-open {
+  transform: rotate(90deg);
+}
+
+/* Context menu / editor popovers */
+.ft-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+}
+.ft-pop {
+  position: fixed;
+  z-index: 50;
+  background: #fff;
+  border: 1px solid #eae3d5;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(74, 60, 30, 0.16);
+  padding: 5px;
+  min-width: 172px;
+}
+.ft-pop-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  background: transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  color: #3a362e;
+  text-align: left;
+}
+.ft-pop-item:hover {
+  background: #f1ebdc;
+}
+.ft-pop-item.danger {
+  color: #a23b29;
+}
+.ft-pop-item.danger:hover {
+  background: #fbeae7;
+}
+.ft-pop-label {
+  padding: 4px 9px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #9a9384;
+}
+
+/* Text field (rename / category / open-project path) */
+.ft-field {
+  width: 100%;
+  height: 32px;
+  box-sizing: border-box;
+  border: 1px solid #eae3d5;
+  border-radius: 8px;
+  background: #faf7ef;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: #2a2722;
+  outline: none;
+}
+.ft-field:focus {
+  border-color: #b9aedf;
+  background: #fff;
+}
+
+/* Recent-project entries (Open Project panel) */
+.ft-recent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  color: #6b655b;
+  text-align: left;
+}
+.ft-recent:hover {
+  background: #f1ebdc;
+  color: #2a2722;
+}
+
+/* Primary (dark) button */
+.ft-primary {
+  border: none;
+  background: #2d2a24;
+  color: #f6f2e9;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ft-primary:hover {
+  background: #423d34;
+}
+
+/* Range slider (sequence size controls in the top bar) */
+.ft-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 3px;
+  background: #e0d8c6;
+  outline: none;
+  cursor: pointer;
+}
+.ft-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #5e54a8;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+}
+.ft-range::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #5e54a8;
+  border: 2px solid #fff;
+  cursor: pointer;
+}
+
+/* Zoom controls on canvas */
+.ft-zoombtn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #6b655b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ft-zoombtn:hover {
+  background: #f7f2e7;
+  color: #2a2722;
+}
