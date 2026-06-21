@@ -239,7 +239,9 @@ export async function runServe(opts: ServeOptions): Promise<void> {
     const method = req.method ?? "GET";
 
     if (p === "/" || p === "/index.html") {
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      // no-store: the dev server re-reads the renderer each request, so the browser
+      // must never serve a stale cached copy after a rebuild.
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
       res.end(currentTemplate());
       return;
     }
