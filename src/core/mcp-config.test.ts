@@ -97,3 +97,11 @@ test("detectAgents: Claude Desktop is gui-managed; Claude Code is not", () => {
   assert.equal(desktop?.guiManaged, true);
   assert.equal(code?.guiManaged, false);
 });
+
+test("detectAgents: includes Antigravity (Google IDE) with its ~/.gemini config", () => {
+  const a = detectAgents("C:/proj").find((x) => x.id === "antigravity");
+  assert.ok(a, "antigravity agent present");
+  assert.equal(a?.label, "Antigravity");
+  assert.equal(a?.schema.key, "mcpServers");
+  assert.ok(a?.location.includes(".gemini/antigravity/mcp_config.json"), `location: ${a?.location}`);
+});

@@ -197,6 +197,14 @@ const REGISTRY: AgentDef[] = [
     detect: () => exists(home(".codeium", "windsurf")),
   },
   {
+    id: "antigravity",
+    label: "Antigravity",
+    schema: JSON_MCP, // Google Antigravity IDE — JSON, "mcpServers" key, command/args/env
+    writable: true,
+    location: () => "~/.gemini/antigravity/mcp_config.json",
+    detect: () => exists(home(".gemini", "antigravity")),
+  },
+  {
     id: "vscode",
     label: "VS Code",
     schema: { format: "json", key: "servers" },
