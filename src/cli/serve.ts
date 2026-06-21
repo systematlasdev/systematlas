@@ -215,15 +215,28 @@ export async function runServe(opts: ServeOptions): Promise<void> {
       broadcast({ type: "error", message: `"${id}" could not be read: ${String(e)}` });
     }
   };
-  // chokidar MUST have an "error" handler — without one, a watch error (EPERM/
-  // ENOENT on some subdir of a large/system folder) is an unhandled EventEmitter
-  // "error" and crashes the process. This was killing serve on open-project.
-  const makeWatcher = (dir: string): FSWatcher =>
-    chokidar
-      .watch(dir, { ignoreInitial: true, depth: 1 })
+  // Watch ONLY the store dir + the workspace root's own *.flow.json / *.sequence.json
+  // (depth 0, no recursion). Watching the whole tree was catastrophic when the
+  // workspace happened to be a home/system folder: chokidar tried to watch
+  // NTUSER.DAT, Application Data, OneDrive, … → a flood of EPERM/EBUSY. The
+  // `ignored` predicate keeps everything except our docs + store dir out entirely.
+  // (chokidar v5 dropped globs, so we filter with a function instead.)
+  // An "error" handler is still mandatory — a watch error must never crash serve.
+  const makeWatcher = (dir: string): FSWatcher => {
+    const root = path.resolve(dir);
+    const store = path.join(root, BRAND.storeDir);
+    const ignored = (p: string): boolean => {
+      const rp = path.resolve(p);
+      if (rp === root || rp === store || rp.startsWith(store + path.sep)) return false; // watched roots + store contents
+      if (path.dirname(rp) === root) return !SUFFIX_RE.test(rp); // root level: keep only docs
+      return true; // anything else (sub-folders, system files) → ignore
+    };
+    return chokidar
+      .watch([store, root], { ignoreInitial: true, depth: 0, ignored })
       .on("add", onChange)
       .on("change", onChange)
       .on("error", (e) => console.error(`[${BRAND.key}] watch error: ${String(e)}`));
+  };
   let watcher: FSWatcher = makeWatcher(projectDir);
 
   // --- project listing -----------------------------------------------------------
