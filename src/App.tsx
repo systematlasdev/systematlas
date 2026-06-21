@@ -287,7 +287,7 @@ function tweenViewport(
 }
 
 export default function App() {
-  const { flows, projectName, projectRoot, canWrite, recents, trail, activeId, navigate, drillTo, goToDepth, rename, setCategory, renameCategory, remove, openProject, pickFolder, listDir, parents, mcp, setupMcp, build, reveal, doc, error } =
+  const { flows, projectName, projectRoot, canWrite, recents, trail, activeId, navigate, drillTo, goToDepth, rename, setCategory, renameCategory, remove, openProject, pickFolder, listDir, parents, mcp, setupMcp, build, doc, error } =
     useFlowData();
   const [selection, setSelection] = useState<Selection>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -744,7 +744,6 @@ export default function App() {
             mcp={mcp}
             onSetupMcp={setupMcp}
             onBuild={build}
-            onReveal={reveal}
             width={sidebarWidth}
             onResizeStart={startSidebarResize}
           />
