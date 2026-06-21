@@ -37,9 +37,22 @@
       "type": "step",
       "label": "Walk source tree",
       "description": [
-        "Read directory entries; recurse into sub-directories."
+        "Reads the source folder entries with readdir({ withFileTypes: true }).",
+        "Recurses into every sub-directory, so nested assets are found at any depth.",
+        "Hands each file to the next step (the \"Markdown?\" decision); directories never reach it."
       ],
-      "owner": "assets"
+      "owner": "assets",
+      "source": {
+        "file": "src/assets.js",
+        "symbol": "copyAssets",
+        "line": 6
+      },
+      "refs": [
+        {
+          "label": "assets.js — source on GitHub",
+          "url": "https://github.com/systematlasdev/systematlas/blob/main/demo/mdsite/src/assets.js"
+        }
+      ]
     },
     {
       "id": "is_md",

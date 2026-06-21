@@ -12,7 +12,7 @@ The build pipeline of a tiny static-site generator — parallel drill-downs and 
 
 [![SystemAtlas — Flow view](https://raw.githubusercontent.com/systematlasdev/systematlas/main/docs/img/screen_1.png)](https://systematlasdev.github.io/systematlas/)
 
-*A **Flow** — the high-level graph, color-coded by actor, with drill-down into sub-flows.*
+*A **Flow** — the high-level graph, color-coded by actor. Select a step to see its description, I/O and a link to the source; drill down into a sub-flow or a Sequence.*
 
 [![SystemAtlas — Sequence view](https://raw.githubusercontent.com/systematlasdev/systematlas/main/docs/img/screen_2.png)](https://systematlasdev.github.io/systematlas/)
 
@@ -71,8 +71,12 @@ systematlas init  [dir] [--location <path>] [--format json|toml]
 ```
 
 - **`serve`** — local dev server + browser. Watches documents and re-renders **in place** (keeps zoom/selection).
-- **`build`** — bakes the renderer + documents into **one self-contained `index.html`** (offline, drill-down works). `--split` → one file per document; `<file>` → a single `<id>.html`.
+- **`build`** — bakes the renderer + documents into **one self-contained `index.html`** (offline, drill-down works). `--split` → one file per document; `<file>` → a single `<id>.html`. You can also export from the sidebar's **Export project** menu while serving.
 - **`init`** — wire up the MCP config for your agent.
+
+[![Export project to one self-contained HTML](https://raw.githubusercontent.com/systematlasdev/systematlas/main/docs/img/screen_3.png)](https://systematlasdev.github.io/systematlas/)
+
+*Export the whole workspace to one self-contained HTML — from the CLI (`build`) or the sidebar's **Export project** menu.*
 
 ## How it works
 
