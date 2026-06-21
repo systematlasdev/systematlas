@@ -153,11 +153,13 @@ export function Sidebar(props: SidebarProps) {
   const [customKey, setCustomKey] = useState("mcpServers");
   const [mcpChosen, setMcpChosen] = useState<{ label: string; location: string; schema: McpSchema; guiManaged?: boolean } | null>(null);
   // Export state
+  const [exportOpen, setExportOpen] = useState(false);
   const [building, setBuilding] = useState(false);
   const [buildResult, setBuildResult] = useState<BuildResult | null>(null);
   const [buildErr, setBuildErr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const doExport = async () => {
+    setExportOpen(false);
     setBuilding(true);
     setBuildErr(null);
     setCopied(false);
@@ -399,22 +401,30 @@ export function Sidebar(props: SidebarProps) {
         <div style={{ padding: "2px 18px 12px", borderBottom: `1px solid ${tokens.color.border}`, marginBottom: 6 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div
-              style={{ flex: "1 1 auto", fontSize: 16, fontWeight: 700, color: tokens.color.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+              style={{ fontSize: 16, fontWeight: 700, color: tokens.color.text, wordBreak: "break-word", lineHeight: 1.2 }}
               title={`Project: ${projectName}`}
             >
               {projectName}
             </div>
-            {/* Export — only in serve mode with at least one document. */}
+            {/* Export menu — only in serve mode with at least one document. */}
             {canWrite && flows.length > 0 ? (
-              <button
-                className="ft-recent"
-                style={{ height: 26, padding: "0 12px", borderRadius: 7, fontSize: 12, fontWeight: 600, flex: "0 0 auto" }}
-                disabled={building}
-                title="Export this project as a single self-contained HTML file"
-                onClick={doExport}
-              >
-                {building ? "Exporting…" : "Export"}
-              </button>
+              <div style={{ position: "relative", flex: "0 0 auto", marginLeft: "auto" }}>
+                <button
+                  className="ft-recent"
+                  style={{ height: 26, padding: "0 11px", borderRadius: 7, fontSize: 12, fontWeight: 600 }}
+                  disabled={building}
+                  title="Export this project"
+                  onClick={() => setExportOpen((v) => !v)}
+                >
+                  {building ? "Exporting…" : "Export project ▾"}
+                </button>
+                {exportOpen ? (
+                  <div style={{ position: "absolute", top: 30, right: 0, zIndex: 20, minWidth: 220, background: "#fff", border: `1px solid ${tokens.color.border}`, borderRadius: 9, boxShadow: "0 6px 20px rgba(74,60,30,.16)", padding: 4 }}>
+                    <button className="ft-pop-item" onClick={doExport}>Export self-contained HTML</button>
+                    {/* future: Export PNG / Export SVG */}
+                  </div>
+                ) : null}
+              </div>
             ) : null}
           </div>
           {buildErr ? (
@@ -423,23 +433,20 @@ export function Sidebar(props: SidebarProps) {
             <div style={{ marginTop: 8, fontSize: 11.5, color: "#3d7c52", lineHeight: 1.5 }}>
               ✓ Exported {buildResult.files} document(s) → one HTML
               <div style={{ fontSize: 10.5, color: tokens.color.textSecondary, marginTop: 5, marginBottom: 3 }}>Saved here:</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <code
-                  style={{ flex: "1 1 auto", fontSize: 10, color: tokens.color.faint, fontFamily: tokens.font.mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", background: tokens.color.field, border: `1px solid ${tokens.color.border}`, borderRadius: 6, padding: "4px 7px" }}
-                  title={buildResult.path}
-                >
-                  {buildResult.path}
-                </code>
-                <button
-                  className="ft-recent"
-                  style={{ height: 26, padding: "0 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, flex: "0 0 auto", color: copied ? "#3d7c52" : undefined }}
-                  title="Copy the file path to the clipboard"
-                  onClick={() => doCopy(buildResult.path)}
-                >
-                  {copied ? "Copied ✓" : "Copy"}
-                </button>
-              </div>
-              {copied ? <div style={{ marginTop: 4, fontSize: 10.5, color: tokens.color.faint2 }}>Path copied to clipboard.</div> : null}
+              <code
+                style={{ display: "block", fontSize: 10, color: tokens.color.textSecondary, fontFamily: tokens.font.mono, wordBreak: "break-all", lineHeight: 1.45, background: tokens.color.field, border: `1px solid ${tokens.color.border}`, borderRadius: 6, padding: "5px 7px" }}
+                title={buildResult.path}
+              >
+                {buildResult.path}
+              </code>
+              <button
+                className="ft-recent"
+                style={{ marginTop: 6, height: 24, padding: "0 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, color: copied ? "#3d7c52" : undefined }}
+                title="Copy the file path to the clipboard"
+                onClick={() => doCopy(buildResult.path)}
+              >
+                {copied ? "Copied ✓  ·  Path copied to clipboard" : "Copy path"}
+              </button>
             </div>
           ) : null}
         </div>
