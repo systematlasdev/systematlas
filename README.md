@@ -10,7 +10,13 @@
 
 The build pipeline of a tiny static-site generator — parallel drill-downs and a Sequence with reuse badges. Click **Open** on a step to dive in.
 
-<!-- TODO: add a screenshot / GIF here, e.g. docs/img/flow.png -->
+[![SystemAtlas — Flow view](https://raw.githubusercontent.com/systematlasdev/systematlas/main/docs/img/screen_1.png)](https://systematlasdev.github.io/systematlas/)
+
+*A **Flow** — the high-level graph, color-coded by actor, with drill-down into sub-flows.*
+
+[![SystemAtlas — Sequence view](https://raw.githubusercontent.com/systematlasdev/systematlas/main/docs/img/screen_2.png)](https://systematlasdev.github.io/systematlas/)
+
+*A **Sequence** — the exact call trace, with ×N reuse badges and a minimap.*
 
 SystemAtlas turns a behaviour in your codebase into an interactive diagram at two levels of detail:
 
