@@ -26,7 +26,7 @@ import {
   type SequenceDocument,
 } from "./model";
 import { buildActorColors, NEUTRAL, type ActorColors } from "./theme";
-import { buildGraph, DIMS, edgeKey } from "./layout";
+import { buildGraph, DIMS, edgeKey, FLOW_SPACING } from "./layout";
 import { nodeTypes } from "./nodes";
 import { edgeTypes } from "./edges";
 import { SequenceCanvas, flattenCalls } from "./sequence/SequenceCanvas";
@@ -214,11 +214,26 @@ function EmptyState({ mcp, projectRoot }: { mcp: McpStatus | null; projectRoot: 
   const projectConfigured = mcp.configured;
   const anyConfigured = projectConfigured || agents.some((a) => a.configured);
 
-  // State A — no usable flow-trace MCP yet.
+  // State A — no agent wired to this project yet. Generic: report the gap for THIS
+  // project and point at how to add one, without singling out any one agent.
   if (!anyConfigured) {
-    return desktop?.present
-      ? wrap(<>{title("Claude Desktop detected — connect it to start")}{body(<>It's installed but not wired to this project yet. Open <b>Connect agent (MCP)</b> in the sidebar to add it (or another agent). {BRAND.display} documents are authored by your AI agent.</>)}</>)
-      : wrap(<>{title("Connect an agent to start")}{body(<>{BRAND.display} documents are authored by an AI agent over MCP. Open <b>Connect agent (MCP)</b> in the sidebar to wire one up.</>)}</>);
+    return wrap(
+      <>
+        {title("No agent connected to this project yet")}
+        {body(
+          <>
+            {BRAND.display} documents are authored by an AI agent over MCP, and none is wired to this
+            project.
+          </>,
+        )}
+        {body(
+          <>
+            Open <b>Connect agent (MCP)</b> in the sidebar to add one — Claude Code, Claude Desktop,
+            Cursor, Windsurf, VS Code, Antigravity, Codex, Zed, etc.
+          </>,
+        )}
+      </>,
+    );
   }
 
   // State B/C — an agent can author here. Coach the ask, with a copyable prompt.
@@ -299,6 +314,8 @@ export default function App() {
   // Sequence diagram sizing (resizable via the top-bar sliders).
   const [seqLaneGap, setSeqLaneGap] = useState<number>(SEQ.laneGap);
   const [seqRowH, setSeqRowH] = useState<number>(SEQ.rowH);
+  // Flow node spacing (single top-bar slider; lower = more compact).
+  const [flowGap, setFlowGap] = useState<number>(FLOW_SPACING.default);
   // The canvas area, measured to auto-fit the sequence width on load.
   const seqAreaRef = useRef<HTMLElement>(null);
 
@@ -351,6 +368,14 @@ export default function App() {
         },
         onRowH: setSeqRowH,
         onReset: resetSeqSize,
+      }
+    : undefined;
+  const flowControls = flowDoc
+    ? {
+        gap: flowGap,
+        bounds: [FLOW_SPACING.min, FLOW_SPACING.max] as [number, number],
+        onGap: setFlowGap,
+        onReset: () => setFlowGap(FLOW_SPACING.default),
       }
     : undefined;
 
@@ -537,8 +562,8 @@ export default function App() {
     [doc],
   );
   const base = useMemo(
-    () => (flowDoc ? buildGraph(flowDoc, colors, { onDrill, flowsSet }) : { nodes: [], edges: [] }),
-    [flowDoc, colors, onDrill, flowsSet],
+    () => (flowDoc ? buildGraph(flowDoc, colors, { onDrill, flowsSet }, flowGap) : { nodes: [], edges: [] }),
+    [flowDoc, colors, onDrill, flowsSet, flowGap],
   );
 
   // Which node ids are highlighted: one node, or every node of the selected actor.
@@ -721,7 +746,7 @@ export default function App() {
   return (
     <ReactFlowProvider>
       <div style={{ width: "100vw", height: "100vh", display: "flex", flexDirection: "column", background: tokens.color.canvas, overflow: "hidden" }}>
-        <TopBar trail={trailMeta} onCrumb={onCrumb} tab={kind === "sequence" ? "sequence" : "flow"} seq={seqControls} />
+        <TopBar trail={trailMeta} onCrumb={onCrumb} tab={kind === "sequence" ? "sequence" : "flow"} seq={seqControls} flow={flowControls} />
 
         <div style={{ flex: "1 1 auto", display: "flex", minHeight: 0 }}>
           <Sidebar

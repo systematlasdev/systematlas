@@ -30,11 +30,16 @@ export interface DrillOptions {
   onDrill?: DrillHandler;
 }
 
+// Flow layout compactness (the single Flow spacing slider). `gap` drives dagre's
+// rank separation; node separation tracks it proportionally. Lower = tighter.
+export const FLOW_SPACING = { default: 50, min: 40, max: 130 } as const;
+
 /** Build positioned React Flow nodes + styled edges from a Flow document. */
 export function buildGraph(
   doc: FlowDocument,
   colors: ActorColors,
   drill?: DrillOptions,
+  gap: number = FLOW_SPACING.default,
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = doc.nodes.map((n) => {
     const data: NodeData = {
@@ -71,15 +76,16 @@ export function buildGraph(
     markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: EDGE_COLOR },
   }));
 
-  return layout(nodes, edges, doc.layout ?? "TB");
+  return layout(nodes, edges, doc.layout ?? "TB", gap);
 }
 
-function layout(nodes: Node[], edges: Edge[], dir: "TB" | "LR"): { nodes: Node[]; edges: Edge[] } {
+function layout(nodes: Node[], edges: Edge[], dir: "TB" | "LR", gap: number): { nodes: Node[]; edges: Edge[] } {
   // multigraph: true → named edges (we name each edge by id to read back its
   // routed waypoints AND to keep parallel edges between the same pair distinct).
   const g = new dagre.graphlib.Graph({ multigraph: true });
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: dir, nodesep: 64, ranksep: 96, marginx: 24, marginy: 24 });
+  // `gap` (the Flow spacing slider) sets rank separation; node separation tracks it.
+  g.setGraph({ rankdir: dir, nodesep: Math.round(gap * 0.7), ranksep: gap, marginx: 24, marginy: 24 });
 
   nodes.forEach((n) => {
     const dim = DIMS[n.type as NodeType];
@@ -103,20 +109,31 @@ function layout(nodes: Node[], edges: Edge[], dir: "TB" | "LR"): { nodes: Node[]
     return { ...n, position: { x: p.x - dim.w / 2, y: p.y - dim.h / 2 } };
   });
 
-  // Which side of a node a point sits on (relative to the node's centre): the
-  // dominant axis decides. Used to pick the handle an edge attaches to so a
-  // return/retry edge arriving from below enters the node's bottom/side handle
-  // instead of being forced to the top handle (which made it wrap under the node).
-  const sideOf = (p: { x: number; y: number }, c: { x: number; y: number }): string =>
-    Math.abs(p.x - c.x) > Math.abs(p.y - c.y) ? (p.x > c.x ? "right" : "left") : (p.y > c.y ? "bottom" : "top");
+  // Which side of a node a routed endpoint sits on — decided by which EDGE of the
+  // node's rectangle the point is closest to (dagre clips edges to the box, so the
+  // endpoint lies on one of the four sides). We then re-anchor the line to that
+  // side's handle. Using the nearest-edge (not a centre-relative dominant axis)
+  // matters near a corner: a point at the top-left corner is on the TOP edge, but a
+  // dominant-axis test can mis-call it "left" — and then the line, re-anchored to the
+  // left handle while its next waypoint heads up, grazes the node and hides the
+  // arrowhead. Picking the side dagre actually routed to keeps the arrow visible at
+  // any spacing (recomputed on every layout, so it self-corrects when the gap shrinks).
+  const sideOf = (p: { x: number; y: number }, n: { x: number; y: number; width: number; height: number }): string => {
+    const dl = Math.abs(p.x - (n.x - n.width / 2));
+    const dr = Math.abs(p.x - (n.x + n.width / 2));
+    const dt = Math.abs(p.y - (n.y - n.height / 2));
+    const db = Math.abs(p.y - (n.y + n.height / 2));
+    const m = Math.min(dl, dr, dt, db);
+    return m === dt ? "top" : m === db ? "bottom" : m === dl ? "left" : "right";
+  };
 
   // Hand dagre's routed polyline (avoids the nodes) to the custom edge renderer.
   const routed = edges.map((e) => {
     const ge = g.edge(e.source, e.target, e.id) as { points?: { x: number; y: number }[]; x?: number; y?: number } | undefined;
     const points = ge?.points;
     if (!points || points.length < 2) return e;
-    const sc = g.node(e.source) as { x: number; y: number };
-    const tc = g.node(e.target) as { x: number; y: number };
+    const sc = g.node(e.source) as { x: number; y: number; width: number; height: number };
+    const tc = g.node(e.target) as { x: number; y: number; width: number; height: number };
     const sourceHandle = `s-${sideOf(points[0], sc)}`;
     const targetHandle = `t-${sideOf(points[points.length - 1], tc)}`;
     const labelXY = ge && typeof ge.x === "number" ? { x: ge.x, y: ge.y as number } : undefined;

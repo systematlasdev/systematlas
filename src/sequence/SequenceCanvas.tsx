@@ -18,6 +18,12 @@ const TEXT = "#2A2722";
 const CALLER = "#3C6E91"; // steel blue — "calls the selected"
 const CALLEE = "#BE7A2A"; // amber/bronze — "called by the selected"
 const REUSE = "#5E54A8"; // violet — reuse (same identity as @shared)
+const ACT_HW = 5; // activation-bar half width (the bar rect is 2·ACT_HW wide, centered on its inset x)
+
+/** X of an activation bar's centre on a lifeline, given its per-lifeline inset. */
+function barX(lane: number, inset: number): number {
+  return lane + inset * SEQ.depthInset;
+}
 
 function Message({
   row,
@@ -64,27 +70,31 @@ function Message({
 
   // --- return row: dashed reply back from callee → caller ---
   if (row.kind === "return") {
-    const xFrom = laneX(fromIdx as number, laneGap);
-    const xTo = laneX(toIdx, laneGap);
-    const dir = xFrom > xTo ? 1 : -1;
+    const fromLane = laneX(fromIdx as number, laneGap);
+    const toLane = laneX(toIdx, laneGap);
+    const dir = fromLane > toLane ? 1 : -1; // arrow points toward the caller
+    // Start at the callee bar's edge, land on the caller bar's edge (fall back to the
+    // bare lifeline when that side has no bar).
+    const startX = row.toInset != null ? barX(toLane, row.toInset) + dir * ACT_HW : toLane;
+    const headX = row.fromInset != null ? barX(fromLane, row.fromInset) - dir * ACT_HW : fromLane;
     const col = selected ? SELECT : colors[c.to] ?? EDGE;
     const label = c.returnType ?? (c.returns?.length ? c.returns.map((r) => r.name).join(", ") : "");
     return (
       <g>
         <line
-          x1={xTo}
+          x1={startX}
           y1={yc}
-          x2={xFrom - dir * SEQ.ahead}
+          x2={headX - dir * SEQ.ahead}
           y2={yc}
           stroke={col}
           strokeWidth={selected ? 2 : 1.3}
           strokeDasharray="5 4"
           strokeOpacity={selected ? 1 : 0.8}
         />
-        <polygon points={arrowHead(xFrom, yc, dir > 0 ? 1 : -1)} fill={col} fillOpacity={selected ? 1 : 0.8} />
+        <polygon points={arrowHead(headX, yc, dir > 0 ? 1 : -1)} fill={col} fillOpacity={selected ? 1 : 0.8} />
         {label ? (
           <text
-            x={(xFrom + xTo) / 2}
+            x={(startX + headX) / 2}
             y={yc - 5}
             textAnchor="middle"
             fontSize={10.5}
@@ -102,13 +112,25 @@ function Message({
   }
 
   // --- forward message ---
-  const x2 = laneX(toIdx, laneGap);
+  const toLane = laneX(toIdx, laneGap);
+  const self = !isEntry && fromIdx === toIdx;
+  // Direction the arrow points (+1 right, -1 left). Entry calls always point right
+  // (they come from a short stub to the left of the first lifeline).
+  const dir = isEntry || self ? 1 : toLane >= laneX(fromIdx as number, laneGap) ? 1 : -1;
+  // Land on the callee bar's edge (the call activates the callee), else the lifeline.
+  const x2 = row.toInset != null ? barX(toLane, row.toInset) - dir * ACT_HW : toLane;
   // Entry calls (no `from` actor) start at a FIXED short stub before the first
   // lifeline — not a laneGap fraction, which goes negative (off-canvas) on wide
   // diagrams. Clamped to stay inside the viewport.
   const ENTRY_STUB = 56;
-  const x1 = isEntry ? Math.max(8, x2 - ENTRY_STUB) : laneX(fromIdx as number, laneGap);
-  const self = !isEntry && fromIdx === toIdx;
+  let x1: number;
+  if (isEntry) {
+    x1 = Math.max(8, x2 - ENTRY_STUB);
+  } else {
+    const fromLane = laneX(fromIdx as number, laneGap);
+    // Leave from the caller bar's edge facing the callee (fall back to the lifeline).
+    x1 = row.fromInset != null ? barX(fromLane, row.fromInset) + dir * ACT_HW : fromLane;
+  }
   const col = selected ? SELECT : c.from ? (colors[c.from] ?? EDGE) : EDGE;
   const sw = selected ? 2.4 : 1.6;
   const dash = c.async ? "7 4" : undefined;
@@ -136,13 +158,13 @@ function Message({
           <line
             x1={x1}
             y1={yc}
-            x2={x2 - (x2 > x1 ? 1 : -1) * SEQ.ahead}
+            x2={x2 - dir * SEQ.ahead}
             y2={yc}
             stroke={col}
             strokeWidth={sw}
             strokeDasharray={dash}
           />
-          <polygon points={arrowHead(x2, yc, x2 > x1 ? 1 : -1)} fill={col} />
+          <polygon points={arrowHead(x2, yc, dir)} fill={col} />
         </>
       )}
       <text
@@ -386,14 +408,14 @@ export function SequenceCanvas({
           {/* activation bars (calls that nest children). Opaque white underlay so the
               dashed lifeline doesn't bleed through and read as a parallel "artifact". */}
           {layout.acts.map((a, i) => {
-            const x = laneX(a.actorIdx, laneGap) + a.depth * SEQ.depthInset;
+            const x = barX(laneX(a.actorIdx, laneGap), a.inset);
             const actor = doc.actors[a.actorIdx];
             const col = actor ? (colors[actor.id] ?? NEUTRAL) : NEUTRAL;
             const h = Math.max(2, a.y2 - a.y1);
             return (
               <g key={i}>
-                <rect x={x - 5} y={a.y1} width={10} height={h} rx={2} fill="#FFFFFF" />
-                <rect x={x - 5} y={a.y1} width={10} height={h} rx={2} fill={`${col}26`} stroke={col} strokeOpacity={0.55} />
+                <rect x={x - ACT_HW} y={a.y1} width={ACT_HW * 2} height={h} rx={2} fill="#FFFFFF" />
+                <rect x={x - ACT_HW} y={a.y1} width={ACT_HW * 2} height={h} rx={2} fill={`${col}26`} stroke={col} strokeOpacity={0.55} />
               </g>
             );
           })}

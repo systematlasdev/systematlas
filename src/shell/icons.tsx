@@ -165,12 +165,18 @@ export const IconWidthAdjust = ({ size = 16 }: IconProps) =>
   svg(size, <path d="M4 12h16M7 9l-3 3 3 3M17 9l3 3-3 3" {...S} strokeWidth={1.7} />);
 export const IconHeightAdjust = ({ size = 16 }: IconProps) =>
   svg(size, <path d="M12 4v16M9 7l3-3 3 3M9 17l3 3 3-3" {...S} strokeWidth={1.7} />);
+// Diagonal double-arrow (↖↘) — scales the whole layout's compactness (both axes),
+// so it reads as neither width nor height.
+export const IconDiagonalAdjust = ({ size = 16 }: IconProps) =>
+  svg(size, <path d="M6 6l12 12M6 11V6h5M18 13v5h-5" {...S} strokeWidth={1.7} />);
+// Revert / reset to default — a clean counter-clockwise circular arrow (same glyph
+// for the Flow spacing slider and the Sequence size sliders).
 export const IconReset = ({ size = 16 }: IconProps) =>
   svg(
     size,
     <>
-      <path d="M4 12a8 8 0 1 1 2.5 5.8" {...S} strokeWidth={1.7} />
-      <path d="M4 18v-4.5h4.5" {...S} strokeWidth={1.7} />
+      <polyline points="2.5 5 2.5 10.5 8 10.5" {...S} />
+      <path d="M4.8 16.2a8 8 0 1 0 1.3-9.2L2.5 10.5" {...S} />
     </>,
   );
 export const IconSeqKind = ({ size = 16 }: IconProps) =>

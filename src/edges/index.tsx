@@ -50,6 +50,27 @@ function roundedPath(pts: { x: number; y: number }[], r = 9): string {
   return d;
 }
 
+/** Drop intermediate points within `eps` px of the straight line between their
+ *  neighbours — straightens near-collinear runs (dagre often nudges a midpoint a
+ *  pixel or two off-axis, which roundedPath would otherwise render as a faint bow).
+ *  Endpoints are always kept; real bends (e.g. a return detour) survive. */
+function simplify(pts: { x: number; y: number }[], eps: number): { x: number; y: number }[] {
+  if (pts.length <= 2) return pts;
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = out[out.length - 1];
+    const b = pts[i];
+    const c = pts[i + 1];
+    const dx = c.x - a.x;
+    const dy = c.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const dist = Math.abs((b.x - a.x) * dy - (b.y - a.y) * dx) / len;
+    if (dist > eps) out.push(b);
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+
 export function FtEdge({
   id,
   sourceX,
@@ -76,9 +97,11 @@ export function FtEdge({
     // the target). Anchor the endpoints to the REAL handle coordinates React Flow
     // gives us (sourceX/Y, targetX/Y) rather than dagre's slightly-off first/last
     // points, so the line sits dead-centre on the handles instead of drifting.
-    const pts = d.points.map((p) => ({ x: p.x, y: p.y }));
-    pts[0] = { x: sourceX, y: sourceY };
-    pts[pts.length - 1] = { x: targetX, y: targetY };
+    const anchored = d.points.map((p) => ({ x: p.x, y: p.y }));
+    anchored[0] = { x: sourceX, y: sourceY };
+    anchored[anchored.length - 1] = { x: targetX, y: targetY };
+    // Straighten: collapse near-collinear waypoints so a straight edge is a straight line.
+    const pts = simplify(anchored, 2.5);
     const GAP = 2; // small, equal breathing room at both ends
     // Pull the END back along its last segment.
     const last = pts[pts.length - 1];

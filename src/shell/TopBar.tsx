@@ -2,6 +2,7 @@ import { tokens } from "../tokens";
 import { BRAND } from "../brand";
 import {
   IconChevronRight,
+  IconDiagonalAdjust,
   IconFlowKind,
   IconHeightAdjust,
   IconReset,
@@ -29,6 +30,14 @@ export interface SeqControls {
   onReset: () => void;
 }
 
+/** Flow-only spacing control — a single slider that compacts the whole layout. */
+export interface FlowControls {
+  gap: number;
+  bounds: [number, number];
+  onGap: (v: number) => void;
+  onReset: () => void;
+}
+
 interface TopBarProps {
   /** Drill-down path (root → current). Last segment is the active flow. */
   trail: Crumb[];
@@ -37,6 +46,8 @@ interface TopBarProps {
   tab: Tab;
   /** Present only for sequence documents. */
   seq?: SeqControls;
+  /** Present only for flow documents. */
+  flow?: FlowControls;
 }
 
 const divider = (
@@ -79,7 +90,7 @@ function SizeSlider({
   );
 }
 
-export function TopBar({ trail, onCrumb, tab, seq }: TopBarProps) {
+export function TopBar({ trail, onCrumb, tab, seq, flow }: TopBarProps) {
   return (
     <header
       style={{
@@ -178,6 +189,25 @@ export function TopBar({ trail, onCrumb, tab, seq }: TopBarProps) {
                 onChange={seq.onRowH}
               />
               <button className="ft-quiet" style={{ width: 30, height: 30, borderRadius: 8 }} title="Reset size to fit" onClick={seq.onReset}>
+                <IconReset size={15} />
+              </button>
+            </div>
+            {divider}
+          </>
+        ) : null}
+        {tab === "flow" && flow ? (
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <SizeSlider
+                icon={<IconDiagonalAdjust size={15} />}
+                title="Node spacing — drag to compact the layout"
+                value={flow.gap}
+                min={flow.bounds[0]}
+                max={flow.bounds[1]}
+                suffix={`${Math.round(flow.gap)}px`}
+                onChange={flow.onGap}
+              />
+              <button className="ft-quiet" style={{ width: 30, height: 30, borderRadius: 8 }} title="Reset spacing" onClick={flow.onReset}>
                 <IconReset size={15} />
               </button>
             </div>
