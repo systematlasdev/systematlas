@@ -10,6 +10,7 @@
 import { type Doc, type DocKind, docKind } from "../model";
 import { BRAND } from "../brand";
 import txn from "../../examples/transaction-create.flow.json";
+import txnSeq from "../../examples/transaction-create-seq.sequence.json";
 import refund from "../../examples/refund.flow.json";
 import paymentCharge from "../../examples/payment-charge.flow.json";
 import chargeSequence from "../../examples/charge-sequence.sequence.json";
@@ -35,6 +36,8 @@ export interface LiveHandlers {
   onError: (msg: string) => void;
   /** A document was added/renamed/recategorised/deleted, or the project switched. */
   onProjectChanged?: () => void;
+  /** A NEW document file appeared on disk → show it (auto-open the new graph). */
+  onDocAdded?: (id: string, doc: Doc) => void;
 }
 
 /** MCP onboarding (serve-only). */
@@ -116,25 +119,27 @@ export interface FlowSource {
 }
 
 // Build-time injected global (name from BRAND.globalVar), read dynamically.
-type EmbeddedData = { flows: Record<string, Doc> };
+// `categories` (id → category) is baked by `build` so the static sidebar groups like
+// serve; absent in older builds / single-file builds (then everything is ungrouped).
+type EmbeddedData = { flows: Record<string, Doc>; categories?: Record<string, string> };
 function embeddedData(): EmbeddedData | undefined {
   if (typeof window === "undefined") return undefined;
   return (window as unknown as Record<string, EmbeddedData | undefined>)[BRAND.globalVar];
 }
 
-function metaOf(docs: Doc[]): DocMeta[] {
-  return docs.map((d) => ({ id: d.id, title: d.title, kind: docKind(d), category: "" }));
+function metaOf(docs: Doc[], categories?: Record<string, string>): DocMeta[] {
+  return docs.map((d) => ({ id: d.id, title: d.title, kind: docKind(d), category: categories?.[d.id] ?? "" }));
 }
 
 // --- embedded (build output) + dev share the read-only listing -----------------
-function readOnlySource(flows: Record<string, Doc>, name: string): FlowSource {
+function readOnlySource(flows: Record<string, Doc>, name: string, categories?: Record<string, string>): FlowSource {
   const docs = () => Object.values(flows);
   return {
     async project() {
-      return { name, root: "", documents: metaOf(docs()) };
+      return { name, root: "", documents: metaOf(docs(), categories) };
     },
     async list() {
-      return metaOf(docs());
+      return metaOf(docs(), categories);
     },
     async read(id) {
       const doc = flows[id];
@@ -149,7 +154,7 @@ function readOnlySource(flows: Record<string, Doc>, name: string): FlowSource {
 
 // --- dev (vite dev: bundled examples) ------------------------------------------
 function devSource(): FlowSource {
-  const docs = [txn, refund, paymentCharge, chargeSequence, checkoutSequence] as unknown as Doc[];
+  const docs = [txn, txnSeq, refund, paymentCharge, chargeSequence, checkoutSequence] as unknown as Doc[];
   const flows: Record<string, Doc> = {};
   for (const d of docs) flows[d.id] = d;
   return readOnlySource(flows, "Examples");
@@ -187,15 +192,17 @@ function serveSource(): FlowSource {
       const { documents } = await getJson<ProjectInfo>("/api/project");
       return Promise.all(documents.map((m) => getJson<Doc>(`/api/flow/${encodeURIComponent(m.id)}`)));
     },
-    subscribe({ onUpdate, onError, onProjectChanged }) {
+    subscribe({ onUpdate, onError, onProjectChanged, onDocAdded }) {
       const es = new EventSource("/api/events");
       es.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data) as
             | { type: "flow-updated"; id: string; doc: Doc }
+            | { type: "doc-added"; id: string; doc: Doc }
             | { type: "project-changed" }
             | { type: "error"; message: string };
           if (msg.type === "flow-updated") onUpdate(msg.id, msg.doc);
+          else if (msg.type === "doc-added") onDocAdded?.(msg.id, msg.doc);
           else if (msg.type === "project-changed") onProjectChanged?.();
           else if (msg.type === "error") onError(msg.message);
         } catch {
@@ -270,7 +277,7 @@ function serveSource(): FlowSource {
 export function getSource(): FlowSource {
   const data = embeddedData();
   if (data) {
-    return readOnlySource(data.flows, BRAND.display);
+    return readOnlySource(data.flows, BRAND.display, data.categories);
   }
   if (import.meta.env.DEV) return devSource();
   return serveSource();

@@ -34,6 +34,7 @@ export interface McpSpec {
 const LOCAL_DEV = false;
 
 const fwd = (p: string): string => p.replace(/\\/g, "/");
+const reEscape = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const home = (...segs: string[]): string => join(os.homedir(), ...segs);
 const exists = (p: string): boolean => {
   try {
@@ -285,9 +286,14 @@ function renderFull(schema: McpSchema, spec: McpSpec): string {
   return snippetFor(schema, spec) + "\n";
 }
 
+function appendBlock(content: string, block: string): string {
+  const trimmedRight = content.replace(/\s*$/, "");
+  return (trimmedRight ? `${trimmedRight}\n\n` : "") + block + "\n";
+}
+
 /** Does this config text already declare a flow-trace server under `schema.key`? */
 export function hasFlowTrace(content: string, schema: McpSchema): boolean {
-  if (schema.format === "toml") return new RegExp(`\\[${schema.key}\\.${SERVER_NAME}\\]`).test(content);
+  if (schema.format === "toml") return new RegExp(`^\\s*\\[${reEscape(schema.key)}\\.${reEscape(SERVER_NAME)}\\]\\s*(?:#.*)?$`, "m").test(content);
   try {
     const obj = JSON.parse(content) as Record<string, Record<string, unknown> | undefined>;
     return !!obj[schema.key] && Object.prototype.hasOwnProperty.call(obj[schema.key], SERVER_NAME);
@@ -326,7 +332,7 @@ export interface SetupInput {
  * Write or merge a flow-trace MCP entry into the target config.
  * - missing file → written · present + ours → already
  * - present + JSON → merged (parse, add under schema.key)
- * - present + TOML/unparseable → conflict (return snippet; caller shows Copy)
+ * - present + TOML → merged by appending a new server table
  */
 export function setupMcp(input: SetupInput): SetupResult {
   const path = expandHome(input.location);
@@ -359,7 +365,8 @@ export function setupMcp(input: SetupInput): SetupResult {
     return { status: "merged", path, snippet };
   }
 
-  return { status: "conflict", path, snippet }; // existing TOML → let the user paste
+  writeFileSync(path, appendBlock(content, snippet), "utf8");
+  return { status: "merged", path, snippet };
 }
 
 /** Best-effort "is an agent already wired up here?" — scans the common project configs. */

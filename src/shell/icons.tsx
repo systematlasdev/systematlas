@@ -187,3 +187,7 @@ export const IconSeqKind = ({ size = 16 }: IconProps) =>
       <path d="M7 10.5h10M14 7.5l3 3-3 3" {...S} strokeWidth={1.6} />
     </>,
   );
+// Twin glyph: two opposing vertical arrows (⇅) — switch between the two altitudes
+// (Flow ↔ Sequence) of the same scenario / mark a doc that has a twin.
+export const IconTwin = ({ size = 16 }: IconProps) =>
+  svg(size, <path d="M9 19V6M9 6L6 9M9 6l3 3M15 5v13M15 18l-3-3M15 18l3-3" {...S} strokeWidth={1.6} />);

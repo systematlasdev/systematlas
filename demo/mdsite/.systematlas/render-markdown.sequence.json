@@ -4,7 +4,7 @@
   "id": "render-markdown",
   "title": "Render Markdown → HTML",
   "overview": [
-    "The exact call trace of rendering one page body: tokenize the Markdown, then render each block. The inline renderer reuses two shared helpers — escapeHtml (×3) and resolveLink (×2) — which flow-trace flags with reuse badges."
+    "The exact call trace of rendering one page body: tokenize the Markdown, then render each block. The inline renderer reuses two shared helpers — escapeHtml (×3) and resolveLink (×2) — which SystemAtlas flags with reuse badges."
   ],
   "actors": [
     {

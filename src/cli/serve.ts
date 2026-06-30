@@ -197,6 +197,7 @@ export async function runServe(opts: ServeOptions): Promise<void> {
   };
 
   // --- live reload watcher (re-created on open-project) -------------------------
+  // A CHANGE to an existing document → re-render it in place (flow-updated).
   const onChange = async (filePath: string) => {
     // Manual manifest edits (categories / name / document set) → refresh the listing.
     if (MANIFEST_RE.test(filePath)) {
@@ -213,6 +214,30 @@ export async function runServe(opts: ServeOptions): Promise<void> {
       else broadcast({ type: "flow-updated", id, doc });
     } catch (e) {
       broadcast({ type: "error", message: `"${id}" could not be read: ${String(e)}` });
+    }
+  };
+  // A NEW document file (chokidar 'add') → refresh the listing AND auto-open it, so
+  // a freshly authored graph/sequence shows up without a manual reload. awaitWriteFinish
+  // (below) means the file is fully written by the time we read it.
+  const onAdd = async (filePath: string) => {
+    if (MANIFEST_RE.test(filePath)) {
+      broadcast({ type: "project-changed" });
+      return;
+    }
+    if (!SUFFIX_RE.test(filePath)) return;
+    const id = idFromPath(filePath);
+    if (onlyId && id !== onlyId) return;
+    try {
+      const doc = await project.read(id);
+      const result = await project.validate(doc);
+      if (!result.ok) {
+        broadcast({ type: "error", message: `"${id}": ${result.errors.map((e) => e.message).join("; ")}` });
+        return;
+      }
+      broadcast({ type: "doc-added", id, doc });
+    } catch {
+      // Not yet in the manifest / mid-write — at least refresh the listing.
+      broadcast({ type: "project-changed" });
     }
   };
   // Watch ONLY the store dir + the workspace root's own *.flow.json / *.sequence.json
@@ -232,8 +257,15 @@ export async function runServe(opts: ServeOptions): Promise<void> {
       return true; // anything else (sub-folders, system files) → ignore
     };
     return chokidar
-      .watch([store, root], { ignoreInitial: true, depth: 0, ignored })
-      .on("add", onChange)
+      .watch([store, root], {
+        ignoreInitial: true,
+        depth: 0,
+        ignored,
+        // Fire only once a write has settled, so a new/edited file is fully on disk
+        // before we read it (avoids a partial-JSON read on the 'add' of a new doc).
+        awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
+      })
+      .on("add", onAdd)
       .on("change", onChange)
       .on("error", (e) => console.error(`[${BRAND.key}] watch error: ${String(e)}`));
   };

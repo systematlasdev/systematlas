@@ -1,4 +1,4 @@
-// The orchestrator — this is the top-level Flow the flow-trace diagram describes:
+// The orchestrator — this is the top-level Flow the SystemAtlas diagram describes:
 // load config → discover content → build each page → copy assets → write sitemap.
 
 import { loadConfig } from "./config.js";

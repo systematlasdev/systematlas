@@ -214,26 +214,11 @@ function EmptyState({ mcp, projectRoot }: { mcp: McpStatus | null; projectRoot: 
   const projectConfigured = mcp.configured;
   const anyConfigured = projectConfigured || agents.some((a) => a.configured);
 
-  // State A — no agent wired to this project yet. Generic: report the gap for THIS
-  // project and point at how to add one, without singling out any one agent.
+  // State A — no usable flow-trace MCP yet.
   if (!anyConfigured) {
-    return wrap(
-      <>
-        {title("No agent connected to this project yet")}
-        {body(
-          <>
-            {BRAND.display} documents are authored by an AI agent over MCP, and none is wired to this
-            project.
-          </>,
-        )}
-        {body(
-          <>
-            Open <b>Connect agent (MCP)</b> in the sidebar to add one — Claude Code, Claude Desktop,
-            Cursor, Windsurf, VS Code, Antigravity, Codex, Zed, etc.
-          </>,
-        )}
-      </>,
-    );
+    return desktop?.present
+      ? wrap(<>{title("Claude Desktop detected — connect it to start")}{body(<>It's installed but not wired to this project yet. Open <b>Connect agent (MCP)</b> in the sidebar to add it (or another agent). {BRAND.display} documents are authored by your AI agent.</>)}</>)
+      : wrap(<>{title("Connect an agent to start")}{body(<>{BRAND.display} documents are authored by an AI agent over MCP. Open <b>Connect agent (MCP)</b> in the sidebar to wire one up.</>)}</>);
   }
 
   // State B/C — an agent can author here. Coach the ask, with a copyable prompt.
@@ -302,7 +287,7 @@ function tweenViewport(
 }
 
 export default function App() {
-  const { flows, projectName, projectRoot, canWrite, recents, trail, activeId, navigate, drillTo, goToDepth, rename, setCategory, renameCategory, remove, openProject, pickFolder, listDir, parents, mcp, setupMcp, build, doc, error } =
+  const { flows, projectName, projectRoot, canWrite, recents, trail, activeId, navigate, drillTo, goToDepth, rename, setCategory, renameCategory, remove, openProject, pickFolder, listDir, parents, twins, mcp, setupMcp, build, doc, error } =
     useFlowData();
   const [selection, setSelection] = useState<Selection>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -580,15 +565,17 @@ export default function App() {
   );
 
   // Mark the selected edge so the custom edge highlights + animates. Inject an
-  // onSelect so clicking the edge's LABEL selects it via the same App-state path
-  // as clicking the line (React Flow's internal `selected` is not our source of truth).
+  // onSelect that runs the SAME tap path as clicking the line (tapEdge) — so a single
+  // click on the LABEL selects, and a double-tap on the label drills/centers, exactly
+  // like the edge itself. (React Flow's internal `selected` is not our source of truth.)
   const edges: Edge[] = useMemo(
     () =>
       base.edges.map((e) => ({
         ...e,
         selected: selection?.kind === "edge" && selection.id === e.id,
-        data: { ...e.data, onSelect: () => setSelection({ kind: "edge", id: e.id }) },
+        data: { ...e.data, onSelect: () => tapEdge(e.id, e.source, e.target) },
       })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tapEdge is stable enough; base.edges tracks flowDoc
     [base.edges, selection],
   );
 
@@ -743,10 +730,16 @@ export default function App() {
   };
   const tapCall = (id: string) => setSelection({ kind: "call", id });
 
+  // Twin toggle: when the active doc has a CROSS-KIND twin (Flow ↔ Sequence), the
+  // top-bar kind indicator becomes a toggle that jumps to the twin.
+  const activeTwinId = activeId ? twins[activeId] : undefined;
+  const twinKind = activeTwinId ? flows.find((f) => f.id === activeTwinId)?.kind : undefined;
+  const twinToggle = activeTwinId && twinKind && twinKind !== kind ? { onSwitch: () => navigate(activeTwinId) } : undefined;
+
   return (
     <ReactFlowProvider>
       <div style={{ width: "100vw", height: "100vh", display: "flex", flexDirection: "column", background: tokens.color.canvas, overflow: "hidden" }}>
-        <TopBar trail={trailMeta} onCrumb={onCrumb} tab={kind === "sequence" ? "sequence" : "flow"} seq={seqControls} flow={flowControls} />
+        <TopBar trail={trailMeta} onCrumb={onCrumb} tab={kind === "sequence" ? "sequence" : "flow"} twin={twinToggle} seq={seqControls} flow={flowControls} />
 
         <div style={{ flex: "1 1 auto", display: "flex", minHeight: 0 }}>
           <Sidebar
@@ -766,6 +759,7 @@ export default function App() {
             onPickFolder={pickFolder}
             onListDir={listDir}
             parents={parents}
+            twins={twins}
             mcp={mcp}
             onSetupMcp={setupMcp}
             onBuild={build}

@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolve } from "node:path";
-import { resolveWorkspaceRoot, mcpServerSpec, snippetFor, isProjectScoped, expandHome, detectAgents } from "./mcp-config";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { resolveWorkspaceRoot, mcpServerSpec, snippetFor, isProjectScoped, expandHome, detectAgents, setupMcp, hasFlowTrace } from "./mcp-config";
 import { BRAND } from "../brand";
 
 // ---- resolveWorkspaceRoot (pure resolution, the heart of B) -------------------
@@ -75,6 +77,36 @@ test("snippetFor: global JSON has no env block", () => {
 test("snippetFor: TOML includes env for project-scoped", () => {
   const snippet = snippetFor({ format: "toml", key: "mcp_servers" }, mcpServerSpec({ projectScoped: true }));
   assert.ok(new RegExp(`env\\s*=\\s*\\{[^}]*${BRAND.envScope}`).test(snippet));
+});
+
+test("setupMcp: existing global Codex TOML is appended, not treated as conflict", () => {
+  const dir = mkdtempSync(join(tmpdir(), "systematlas-mcp-"));
+  try {
+    const config = join(dir, "config.toml");
+    writeFileSync(config, 'model = "gpt-5.4"\n\n[mcp_servers.context7]\ncommand = "npx"\nargs = ["-y", "@upstash/context7-mcp"]\n', "utf8");
+
+    const res = setupMcp({
+      location: config,
+      schema: { format: "toml", key: "mcp_servers" },
+      workspaceDir: join(dir, "workspace"),
+    });
+    const content = readFileSync(config, "utf8");
+
+    assert.equal(res.status, "merged");
+    assert.match(content, /model = "gpt-5\.4"/);
+    assert.match(content, /\[mcp_servers\.context7\]/);
+    assert.match(content, new RegExp(`\\[mcp_servers\\.${BRAND.mcpName}\\]`));
+    assert.match(content, new RegExp(`args = \\['-y', '${BRAND.mcpPackage}'\\]`));
+    assert.doesNotMatch(content, new RegExp(BRAND.envScope));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("hasFlowTrace: TOML ignores commented-out server headers", () => {
+  const schema = { format: "toml" as const, key: "mcp_servers" };
+  assert.equal(hasFlowTrace(`# [mcp_servers.${BRAND.mcpName}]\n`, schema), false);
+  assert.equal(hasFlowTrace(`[mcp_servers.${BRAND.mcpName}] # active\n`, schema), true);
 });
 
 // ---- isProjectScoped (geometric, host-agnostic) ------------------------------

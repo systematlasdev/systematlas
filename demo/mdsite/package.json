@@ -2,7 +2,7 @@
   "name": "mdsite",
   "version": "0.1.0",
   "private": true,
-  "description": "A tiny zero-dependency static site generator — demo project for flow-trace.",
+  "description": "A tiny zero-dependency static site generator — demo project for SystemAtlas.",
   "type": "module",
   "bin": {
     "mdsite": "src/cli.js"

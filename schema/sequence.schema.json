@@ -34,6 +34,10 @@
       "items": { "type": "string", "minLength": 1 },
       "minItems": 1
     },
+    "twin": {
+      "description": "Optional id of this document's TWIN — the SAME whole scenario at the other altitude (typically a Sequence paired with a Flow). A document-level link, DISTINCT from drill-down (which is part-of). Set it on both twins, each pointing to the other. The UI shows a Flow/Sequence toggle to switch between them.",
+      "$ref": "#/$defs/scopedId"
+    },
     "actors": {
       "description": "Participants = lifelines. Every participant, human AND system. Each call references actors as its caller (from) / callee (to). Drives lifeline color.",
       "type": "array",

@@ -1,0 +1,181 @@
+{
+  "version": "1",
+  "id": "cli-parse",
+  "title": "CLI — parse & dispatch",
+  "layout": "TB",
+  "overview": [
+    "The command-line entry layer, before the build pipeline runs: read argv, accept only the `build` command, collect `--src`/`--out` overrides, then hand off to build(overrides) and map a rejected build to a non-zero exit. A separate concern from the pipeline itself — hence its own category."
+  ],
+  "actors": [
+    {
+      "id": "cli",
+      "label": "CLI",
+      "kind": "system"
+    },
+    {
+      "id": "build",
+      "label": "Build pipeline",
+      "kind": "service"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "type": "terminal",
+      "label": "mdsite [args]",
+      "description": [
+        "Process entry: the bin script runs with argv."
+      ],
+      "source": {
+        "file": "src/cli.js",
+        "symbol": "cli",
+        "line": 1
+      }
+    },
+    {
+      "id": "read",
+      "type": "step",
+      "label": "Read argv → cmd",
+      "description": [
+        "Slice process.argv; the first positional is the command, defaulting to 'build'."
+      ],
+      "owner": "cli",
+      "source": {
+        "file": "src/cli.js",
+        "symbol": "cli",
+        "line": 6
+      },
+      "outputs": [
+        {
+          "name": "cmd",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "id": "is_build",
+      "type": "decision",
+      "label": "cmd === 'build'?",
+      "description": [
+        "Only 'build' is supported in this minimal CLI."
+      ],
+      "owner": "cli",
+      "source": {
+        "file": "src/cli.js",
+        "symbol": "cli",
+        "line": 14
+      }
+    },
+    {
+      "id": "usage",
+      "type": "terminal",
+      "label": "Print usage → exit 1",
+      "description": [
+        "Unknown command: write the usage line to stderr and exit non-zero."
+      ],
+      "owner": "cli",
+      "source": {
+        "file": "src/cli.js",
+        "symbol": "cli",
+        "line": 15
+      }
+    },
+    {
+      "id": "overrides",
+      "type": "step",
+      "label": "Collect --src / --out",
+      "description": [
+        "Read optional --src and --out flags and fold the present ones into an overrides object (later layered over config defaults)."
+      ],
+      "owner": "cli",
+      "source": {
+        "file": "src/cli.js",
+        "symbol": "flag",
+        "line": 20
+      },
+      "outputs": [
+        {
+          "name": "overrides",
+          "type": "Partial<Config>"
+        }
+      ]
+    },
+    {
+      "id": "run",
+      "type": "io",
+      "label": "build(overrides)",
+      "description": [
+        "Hand off to the build pipeline with the collected overrides. The CLI awaits its promise."
+      ],
+      "owner": "build",
+      "source": {
+        "file": "src/cli.js",
+        "symbol": "cli",
+        "line": 26
+      }
+    },
+    {
+      "id": "fail",
+      "type": "terminal",
+      "label": "Build failed → exit 1",
+      "description": [
+        "A rejected build is caught: print the message to stderr and exit non-zero."
+      ],
+      "owner": "cli",
+      "source": {
+        "file": "src/cli.js",
+        "symbol": "cli",
+        "line": 27
+      }
+    },
+    {
+      "id": "done",
+      "type": "terminal",
+      "label": "Site built",
+      "description": [
+        "The build promise resolved — the process exits 0."
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "start",
+      "to": "read",
+      "type": "flow"
+    },
+    {
+      "from": "read",
+      "to": "is_build",
+      "type": "flow"
+    },
+    {
+      "from": "is_build",
+      "to": "usage",
+      "type": "branch",
+      "label": "no"
+    },
+    {
+      "from": "is_build",
+      "to": "overrides",
+      "type": "branch",
+      "label": "yes"
+    },
+    {
+      "from": "overrides",
+      "to": "run",
+      "type": "flow"
+    },
+    {
+      "from": "run",
+      "to": "done",
+      "type": "flow",
+      "label": "resolved"
+    },
+    {
+      "from": "run",
+      "to": "fail",
+      "type": "branch",
+      "label": "rejected"
+    }
+  ]
+}

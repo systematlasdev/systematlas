@@ -20,7 +20,63 @@ export const DIMS: Record<NodeType, { w: number; h: number }> = {
   io: { w: 200, h: 58 },
 };
 
+// ── Decision diamond auto-size ────────────────────────────────────────────
+// A label lives in the diamond's INSCRIBED square (side = S/2 for a bbox of S).
+// The default 130 box gives only a ~65px inscribed square, so a long label still
+// overflows even at the FitLabel min font. So: grow the diamond just enough that
+// the label fits its inscribed square at the min font. Deterministic (length-
+// based, no DOM) so dagre — which needs sizes up front — and the node component
+// agree. Short labels keep the default 130; only long ones grow ("слегка").
+const DECISION_MIN_FONT = 8; // must match FitLabel min in src/nodes (decision)
+const DECISION_CHAR_W = 0.62; // px per char per font-px (semibold, conservative)
+const DECISION_LINE_H = 1.25;
+
+/** Bounding size (px) for a decision node whose label is `label`. */
+export function decisionSize(label: string): number {
+  const f = DECISION_MIN_FONT;
+  const longest = label.trim().split(/\s+/).reduce((m, w) => Math.max(m, w.length), 0);
+  // Inscribed square must hold the longest word on one line AND the wrapped block.
+  const byWord = longest * f * DECISION_CHAR_W;
+  const byArea = Math.sqrt(label.length * (f * DECISION_CHAR_W) * (f * DECISION_LINE_H) * 1.4);
+  const inscribed = Math.max(byWord, byArea);
+  const s = Math.ceil(inscribed * 2); // S = 2 × inscribed-square side
+  return Math.max(DIMS.decision.w, Math.min(240, s));
+}
+
+/** Rendered bounding box of a node — decision grows with its label; others fixed. */
+function nodeDims(n: Node): { w: number; h: number } {
+  if (n.type === "decision") {
+    const s = (n.data as NodeData).decisionSize ?? DIMS.decision.w;
+    return { w: s, h: s };
+  }
+  return DIMS[n.type as NodeType];
+}
+
 const EDGE_COLOR = "#9a9384";
+
+// ── Edge-label box metrics ────────────────────────────────────────────────
+// One source of truth for the label's rendered size, shared by the renderer
+// (it caps + wraps the label to this box) and by dagre (it reserves this box so
+// the layout spreads nodes/edges enough that labels don't land on top of each
+// other or on a node). Keeping them in sync is the whole fix: previously dagre
+// reserved ~190px while the DOM label rendered at full natural width and bled
+// over its siblings. Estimates are deliberately conservative (round up lines).
+export const LABEL_MAX_W = 200; // px — hard visual cap; longer text wraps
+const LABEL_CHAR_W = 6.2; // approx px per char at 11px / 600 weight
+const LABEL_LINE_H = 15; // px per wrapped line
+const LABEL_PAD_X = 12; // 6px left + 6px right
+const LABEL_PAD_Y = 4; // 2px top + 2px bottom
+
+/** Rendered size of an edge label once capped + wrapped to LABEL_MAX_W. */
+export function labelBox(label: string): { width: number; height: number } {
+  const textW = label.length * LABEL_CHAR_W;
+  const innerW = LABEL_MAX_W - LABEL_PAD_X;
+  const lines = Math.max(1, Math.ceil(textW / innerW));
+  return {
+    width: Math.min(LABEL_MAX_W, Math.ceil(textW) + LABEL_PAD_X),
+    height: lines * LABEL_LINE_H + LABEL_PAD_Y,
+  };
+}
 
 /** Drill-down wiring passed through to subflow nodes (docs/concepts.md §7.3). */
 export interface DrillOptions {
@@ -49,6 +105,7 @@ export function buildGraph(
       owner: n.owner,
       shared: n.shared,
     };
+    if (n.type === "decision") data.decisionSize = decisionSize(n.label);
     // Drill target: a sub-flow (type:subflow) or a sequence (any node with `sequence`).
     const subTarget = n.type === "subflow" ? n.subflow : undefined;
     const target = subTarget ?? n.sequence;
@@ -61,20 +118,27 @@ export function buildGraph(
     return { id: n.id, type: n.type, position: { x: 0, y: 0 }, data };
   });
 
-  const edges: Edge[] = doc.edges.map((e, i) => ({
-    id: edgeKey(e, i),
-    source: e.from,
-    target: e.to,
-    type: "ft",
-    data: {
-      edgeType: e.type,
-      label: e.label,
-      subflow: e.subflow,
-      canDrill: e.subflow ? (drill?.flowsSet?.has(e.subflow) ?? false) : false,
-      onDrill: drill?.onDrill,
-    },
-    markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: EDGE_COLOR },
-  }));
+  const edges: Edge[] = doc.edges.map((e, i) => {
+    // An edge drills into a sub-flow (`subflow`) OR a sequence (`sequence`) — same
+    // as a node. (Previously only `subflow` was wired, so an edge→sequence drill
+    // had no on-canvas control at all.)
+    const target = e.subflow ?? e.sequence;
+    return {
+      id: edgeKey(e, i),
+      source: e.from,
+      target: e.to,
+      type: "ft",
+      data: {
+        edgeType: e.type,
+        label: e.label,
+        drillTarget: target,
+        drillKind: e.subflow ? ("flow" as const) : e.sequence ? ("sequence" as const) : undefined,
+        canDrill: target ? (drill?.flowsSet?.has(target) ?? false) : false,
+        onDrill: drill?.onDrill,
+      },
+      markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: EDGE_COLOR },
+    };
+  });
 
   return layout(nodes, edges, doc.layout ?? "TB", gap);
 }
@@ -88,7 +152,7 @@ function layout(nodes: Node[], edges: Edge[], dir: "TB" | "LR", gap: number): { 
   g.setGraph({ rankdir: dir, nodesep: Math.round(gap * 0.7), ranksep: gap, marginx: 24, marginy: 24 });
 
   nodes.forEach((n) => {
-    const dim = DIMS[n.type as NodeType];
+    const dim = nodeDims(n);
     g.setNode(n.id, { width: dim.w, height: dim.h });
   });
   // Name each edge (its id) so dagre keeps parallel edges distinct and we can read
@@ -97,14 +161,16 @@ function layout(nodes: Node[], edges: Edge[], dir: "TB" | "LR", gap: number): { 
   // landing on top of a node).
   edges.forEach((e) => {
     const label = (e.data as { label?: string } | undefined)?.label;
-    const lbl = label ? { width: Math.min(190, label.length * 6.6 + 14), height: 20, labelpos: "c" as const } : {};
+    // Reserve the label's REAL (capped + wrapped) box so dagre spreads the graph
+    // accordingly — must match what the edge component renders (see labelBox).
+    const lbl = label ? { ...labelBox(label), labelpos: "c" as const } : {};
     g.setEdge(e.source, e.target, lbl, e.id);
   });
 
   dagre.layout(g);
 
   const positioned = nodes.map((n) => {
-    const dim = DIMS[n.type as NodeType];
+    const dim = nodeDims(n);
     const p = g.node(n.id);
     return { ...n, position: { x: p.x - dim.w / 2, y: p.y - dim.h / 2 } };
   });
@@ -127,6 +193,7 @@ function layout(nodes: Node[], edges: Edge[], dir: "TB" | "LR", gap: number): { 
     return m === dt ? "top" : m === db ? "bottom" : m === dl ? "left" : "right";
   };
 
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
   // Hand dagre's routed polyline (avoids the nodes) to the custom edge renderer.
   const routed = edges.map((e) => {
     const ge = g.edge(e.source, e.target, e.id) as { points?: { x: number; y: number }[]; x?: number; y?: number } | undefined;
@@ -137,7 +204,17 @@ function layout(nodes: Node[], edges: Edge[], dir: "TB" | "LR", gap: number): { 
     const sourceHandle = `s-${sideOf(points[0], sc)}`;
     const targetHandle = `t-${sideOf(points[points.length - 1], tc)}`;
     const labelXY = ge && typeof ge.x === "number" ? { x: ge.x, y: ge.y as number } : undefined;
-    return { ...e, sourceHandle, targetHandle, data: { ...e.data, points, labelXY } };
+    // Source/target node boxes → the edge renderer clips each END to the node border
+    // (+gap) along the route direction, so the line leaves/enters where it actually
+    // heads instead of snapping to a side-handle midpoint (which made edges depart
+    // from a node's side or graze its corner).
+    const tn = nodeById.get(e.target);
+    const td = tn ? nodeDims(tn) : undefined;
+    const targetBox = td ? { x: tc.x - td.w / 2, y: tc.y - td.h / 2, w: td.w, h: td.h } : undefined;
+    const sn = nodeById.get(e.source);
+    const sd = sn ? nodeDims(sn) : undefined;
+    const sourceBox = sd ? { x: sc.x - sd.w / 2, y: sc.y - sd.h / 2, w: sd.w, h: sd.h } : undefined;
+    return { ...e, sourceHandle, targetHandle, data: { ...e.data, points, labelXY, sourceBox, targetBox } };
   });
 
   return { nodes: positioned, edges: routed };

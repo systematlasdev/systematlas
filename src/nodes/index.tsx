@@ -1,5 +1,5 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import type { CSSProperties, MouseEvent } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { DIMS } from "../layout";
 import type { NodeData } from "../model";
 import { IconEnter } from "../shell/icons";
@@ -49,8 +49,69 @@ function Handles() {
   );
 }
 
-function Label({ text }: { text: string }) {
-  return <div style={{ fontSize: 13, fontWeight: 600, color: TEXT }}>{text}</div>;
+/** Auto-fitting label. Renders at `max` px and shrinks (down to `min`) until the
+ *  text fits its box. Words are NEVER broken mid-token (overflowWrap: normal) —
+ *  instead the font shrinks so a long token like "react(OnRandomNumbersEvent)" or
+ *  "SetContentStatus" stays on one line and inside the shape. Lines still wrap at
+ *  spaces. Re-fits when the text changes. Measurement is in layout px (unaffected
+ *  by React Flow's zoom transform).
+ *
+ *  `fixedHeight`: fixed-size shapes (terminal/decision/io) also shrink to fit the
+ *  HEIGHT; auto-height shapes (step/subflow) grow instead, so they constrain on
+ *  WIDTH only (shrink only to keep the widest word from overflowing). */
+function FitLabel({
+  text,
+  max = 13,
+  min = 8.5,
+  weight = 600,
+  color = TEXT,
+  fixedHeight = false,
+}: {
+  text: string;
+  max?: number;
+  min?: number;
+  weight?: number;
+  color?: string;
+  fixedHeight?: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [fs, setFs] = useState(max);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let size = max;
+    el.style.fontSize = `${size}px`;
+    const fits = () =>
+      el.scrollWidth <= el.clientWidth + 0.5 && (!fixedHeight || el.scrollHeight <= el.clientHeight + 0.5);
+    while (size > min && !fits()) {
+      size -= 0.5;
+      el.style.fontSize = `${size}px`;
+    }
+    setFs(size);
+  }, [text, max, min, fixedHeight]);
+  return (
+    <div
+      ref={ref}
+      style={{
+        width: "100%",
+        height: fixedHeight ? "100%" : "auto",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        textAlign: "center",
+        overflow: "hidden",
+        overflowWrap: "normal", // never break a word — shrink the font instead
+        wordBreak: "normal",
+        hyphens: "none",
+        lineHeight: 1.22,
+        fontSize: fs,
+        fontWeight: weight,
+        color,
+      }}
+    >
+      {text}
+    </div>
+  );
 }
 
 /** Corner "Open" control shown on any node that drills down (sub-flow or sequence).
@@ -106,22 +167,17 @@ export function TerminalNode({ data, selected }: NodeProps) {
       style={{
         width: DIMS.terminal.w,
         height: DIMS.terminal.h,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
         background: "#efeadf",
         border: "1px solid #d8d1c2",
         borderRadius: 999,
-        fontSize: 13,
-        fontWeight: 700,
-        color: "#4a463d",
+        padding: "4px 16px",
         boxSizing: "border-box",
         boxShadow: selected ? SHADOW_SEL : "none",
         ...lift(selected),
       }}
     >
       <Handles />
-      {d.label}
+      <FitLabel text={d.label} max={13} min={9} weight={700} color="#4a463d" fixedHeight />
     </div>
   );
 }
@@ -157,7 +213,7 @@ export function StepNode({ id, data, selected }: NodeProps) {
       <Handles />
       <DrillBadge id={id} d={d} />
       <div style={{ paddingRight: d.drillTarget ? 44 : 0 }}>
-        <Label text={d.label} />
+        <FitLabel text={d.label} max={13} min={9} />
       </div>
     </div>
   );
@@ -187,7 +243,7 @@ export function SubflowNode({ id, data, selected }: NodeProps) {
       {/* Double border = "this is a sub-flow"; the badge is the drill action. */}
       <DrillBadge id={id} d={d} />
       <div style={{ paddingRight: 44 }}>
-        <Label text={d.label} />
+        <FitLabel text={d.label} max={13} min={9} />
       </div>
     </div>
   );
@@ -195,7 +251,11 @@ export function SubflowNode({ id, data, selected }: NodeProps) {
 
 export function DecisionNode({ id, data, selected }: NodeProps) {
   const d = data as NodeData;
-  const s = DIMS.decision.w;
+  // Bounding size grows with the label (layout.ts decisionSize) so a long label
+  // fits the diamond's inscribed square instead of spilling past its edges.
+  const s = d.decisionSize ?? DIMS.decision.w;
+  const diamondInset = Math.round(s * 0.138); // keep the rotated-square proportions
+  const labelInset = Math.round(s / 4); // label box = inscribed square (side ≈ s/2)
   // Drillable decision → full owner-color border + glow halo (like a sub-flow);
   // a plain decision keeps the two-left-edges accent.
   const drillable = !!d.drillTarget;
@@ -209,7 +269,7 @@ export function DecisionNode({ id, data, selected }: NodeProps) {
       <div
         style={{
           position: "absolute",
-          inset: 18,
+          inset: diamondInset,
           transform: "rotate(45deg)",
           background: "#fff",
           // After rotate(45°) the square's left+bottom borders map to the diamond's
@@ -219,21 +279,11 @@ export function DecisionNode({ id, data, selected }: NodeProps) {
           boxShadow: `${halo}${selected ? SHADOW_SEL : SHADOW}`,
         }}
       />
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 16,
-          textAlign: "center",
-          fontSize: 12,
-          fontWeight: 600,
-          color: TEXT,
-        }}
-      >
-        {d.label}
+      {/* Label is constrained to the diamond's roughly-inscribed area (inset) and
+          auto-fits: a long token like "SetContentStatus" shrinks to stay inside the
+          rhombus instead of spilling past its slanted edges. */}
+      <div style={{ position: "absolute", inset: labelInset }}>
+        <FitLabel text={d.label} max={12.5} min={8} weight={600} fixedHeight />
       </div>
       {/* Diamond center holds the label; its bounding-box corners are empty. Use an
           icon-only drill control in the top-right corner so it never collides. */}
@@ -259,19 +309,8 @@ export function IoNode({ data, selected }: NodeProps) {
           boxShadow: selected ? SHADOW_SEL : SHADOW,
         }}
       />
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 13,
-          fontWeight: 600,
-          color: TEXT,
-        }}
-      >
-        {d.label}
+      <div style={{ position: "absolute", inset: 0, padding: "6px 20px", boxSizing: "border-box" }}>
+        <FitLabel text={d.label} max={13} min={9} weight={600} fixedHeight />
       </div>
     </div>
   );

@@ -79,6 +79,9 @@ export interface FlowDocument {
   layout?: LayoutDir;
   /** Optional document-level overview (paragraphs), shown in the bottom bar. */
   overview?: string[];
+  /** Optional id of the TWIN document — the same whole scenario at the other
+   *  altitude (Flow ↔ Sequence). Document-level link, distinct from drill-down. */
+  twin?: string;
   actors: Actor[];
   nodes: FlowNode[];
   edges: FlowEdge[];

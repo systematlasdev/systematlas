@@ -1,6 +1,6 @@
 // Shared HTML helpers. These two functions are the "hot" utilities — called from
 // several places during a build, which is exactly what makes them show up as
-// reused (×N) calls in the flow-trace Sequence diagram.
+// reused (×N) calls in the SystemAtlas Sequence diagram.
 
 const ENTITIES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 

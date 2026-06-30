@@ -4,6 +4,7 @@
   "id": "transaction-create",
   "title": "Create transaction",
   "layout": "TB",
+  "twin": "transaction-create-seq",
   "overview": [
     "Creates a payment transaction: the user submits a request, the API validates it, funds are charged through the payment gateway, and the transaction is persisted.",
     "The Charge payment step drills into its own sub-flow (payment-charge), which in turn links to the low-level execution sequence (charge-sequence)."

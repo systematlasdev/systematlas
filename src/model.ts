@@ -35,6 +35,9 @@ export interface NodeData {
   summary?: string; // first description point, shown on the node card
   owner?: string;
   shared?: boolean;
+  /** Decision nodes only: bounding size (px) computed from the label so a long
+   *  label still fits the diamond's inscribed area (src/layout.ts decisionSize). */
+  decisionSize?: number;
   // Drill-down: resolved target (sub-flow for type:subflow, or a sequence for any
   // node with `sequence`), its kind, whether it resolves, + the "Open" handler.
   drillTarget?: string;

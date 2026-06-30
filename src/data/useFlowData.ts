@@ -35,6 +35,9 @@ export interface FlowData {
   listDir: (path?: string) => Promise<DirListing>;
   /** child doc id → parent doc id (drill-down lineage), for sidebar indicators. */
   parents: Record<string, string>;
+  /** doc id → its twin doc id (the same scenario at the other altitude). Symmetric
+   *  (both endpoints mapped), unioned from each doc's `twin` field. */
+  twins: Record<string, string>;
   /** MCP onboarding state (serve only; null otherwise). */
   mcp: McpStatus | null;
   setupMcp: (location: string, schema: McpSchema, dryRun?: boolean) => Promise<McpSetupResult>;
@@ -68,14 +71,24 @@ export function useFlowData(): FlowData {
   const parentsRef = useRef<Map<string, string>>(new Map());
   // Same map, exposed to the sidebar to show drill-down lineage (child → parent).
   const [parents, setParents] = useState<Record<string, string>>({});
+  // Twin pairing (symmetric): doc id → its twin's id, unioned from `twin` fields.
+  const [twins, setTwins] = useState<Record<string, string>>({});
   useEffect(() => {
     let alive = true;
     source
       .readAll()
       .then((docs) => {
         if (!alive) return;
+        const ids = new Set(docs.map((d) => d.id));
         const m = new Map<string, string>();
+        const tw = new Map<string, string>();
         for (const d of docs) {
+          // Twin pairing — symmetric union over each doc's `twin` field (any kind).
+          const t = d.twin;
+          if (t && t !== d.id && ids.has(t)) {
+            if (!tw.has(d.id)) tw.set(d.id, t);
+            if (!tw.has(t)) tw.set(t, d.id);
+          }
           if (docKind(d) !== "flow") continue;
           const f = d as FlowDocument;
           for (const n of f.nodes) {
@@ -89,6 +102,7 @@ export function useFlowData(): FlowData {
         }
         parentsRef.current = m;
         setParents(Object.fromEntries(m));
+        setTwins(Object.fromEntries(tw));
       })
       .catch(() => undefined);
     return () => {
@@ -222,6 +236,17 @@ export function useFlowData(): FlowData {
           .then((p) => applyProject(p.name, p.root, p.documents))
           .catch((e) => setError(String(e)));
       },
+      // A new graph/sequence file appeared → show it. Refresh the listing (for the
+      // authoritative title/category), then jump the trail to the new document.
+      onDocAdded: (id, d) => {
+        setDoc(d);
+        setError(null);
+        source
+          .project()
+          .then((p) => applyProject(p.name, p.root, p.documents))
+          .catch(() => undefined)
+          .finally(() => setTrail((t) => (t[t.length - 1] === id ? t : [id])));
+      },
     });
   }, [source, applyProject]);
 
@@ -281,6 +306,7 @@ export function useFlowData(): FlowData {
     pickFolder,
     listDir,
     parents,
+    twins,
     mcp,
     setupMcp,
     build,

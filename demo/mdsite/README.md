@@ -1,7 +1,7 @@
 # mdsite
 
 A tiny, **zero-dependency** static site generator — the demo project for
-[flow-trace](../../). It exists so flow-trace has a real codebase to visualize:
+[SystemAtlas](../../). It exists so SystemAtlas has a real codebase to visualize:
 a clear top-level Flow, parallel sub-flows, and a drill-down into a Sequence with
 genuinely reused helper calls.
 
@@ -27,7 +27,7 @@ No install, no build step — plain Node ESM (Node 18+).
 The Markdown renderer (`markdown.js`) is hand-written: `tokenize` → `renderToken`
 (per block) → `renderInline`, which calls the shared helpers `escapeHtml` and
 `resolveLink` (also reused by the layout and the sitemap) — the reuse that
-flow-trace highlights with ×N badges.
+SystemAtlas highlights with ×N badges.
 
 ## Layout
 

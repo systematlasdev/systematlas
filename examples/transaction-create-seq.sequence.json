@@ -1,0 +1,72 @@
+{
+  "$schema": "../schema/sequence.schema.json",
+  "version": "1",
+  "kind": "sequence",
+  "id": "transaction-create-seq",
+  "title": "Create transaction — call sequence",
+  "twin": "transaction-create",
+  "overview": [
+    "The same scenario as the 'Create transaction' Flow, one altitude lower: the exact call-by-call execution. This is the Flow's TWIN — switch between them with the Flow/Sequence toggle in the top bar.",
+    "(Distinct from drill-down: the Flow's 'Charge payment' step drills into its own sub-flow/sequence for that part only.)"
+  ],
+  "actors": [
+    { "id": "user", "label": "User", "kind": "human" },
+    { "id": "api", "label": "Transaction API", "kind": "service" },
+    { "id": "payment", "label": "Payment Gateway", "kind": "system" },
+    { "id": "db", "label": "Database", "kind": "infra" }
+  ],
+  "phases": [
+    { "id": "request", "label": "Request" },
+    { "id": "validate", "label": "Validate" },
+    { "id": "charge", "label": "Charge" },
+    { "id": "persist", "label": "Persist" }
+  ],
+  "calls": [
+    {
+      "id": "c1",
+      "from": "user",
+      "to": "api",
+      "method": "createTransaction(CreateTxDTO)",
+      "phase": "request",
+      "returnType": "TxResponse",
+      "description": ["Entry call — the user submits the transaction request."],
+      "source": { "file": "src/tx/controller.ts", "symbol": "TxController.create", "line": 42 },
+      "children": [
+        {
+          "id": "c2",
+          "from": "api",
+          "to": "api",
+          "method": "validate(dto)",
+          "phase": "validate",
+          "returnType": "ValidationResult",
+          "description": ["Checks limits and currency; rejects out-of-range amounts."]
+        },
+        {
+          "id": "c3",
+          "from": "api",
+          "to": "payment",
+          "method": "charge(amount, card)",
+          "phase": "charge",
+          "returnType": "ChargeResult",
+          "request": "POST /charge { amount, currency }",
+          "response": "{ id, status }",
+          "source": { "file": "src/adapters/payment.ts", "symbol": "PaymentAdapter.charge", "line": 88 },
+          "children": [
+            { "id": "c4", "from": "payment", "to": "payment", "method": "authorize()", "phase": "charge", "description": ["Reserve funds on the card."] },
+            { "id": "c5", "from": "payment", "to": "payment", "method": "capture()", "phase": "charge", "description": ["Capture the authorized amount."] }
+          ]
+        },
+        {
+          "id": "c6",
+          "from": "api",
+          "to": "db",
+          "method": "insert(tx)",
+          "phase": "persist",
+          "returnType": "txId",
+          "description": ["Persist the transaction row once the charge succeeds."],
+          "source": { "file": "src/tx/repository.ts", "symbol": "TxRepository.insert" }
+        }
+      ]
+    }
+  ]
+}

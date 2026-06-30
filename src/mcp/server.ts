@@ -446,6 +446,18 @@ sequence diagram. Set \`kind:"sequence"\` and use \`*.sequence.json\`. Shape:
 - A Flow step links down to a Sequence via the node/edge \`sequence\` field (like \`subflow\`).
 - Schema: ${URI}://sequence-schema. The same read/write/validate/list tools handle both kinds.
 
+## Twin — the WHOLE scenario at both altitudes
+When the SAME whole behaviour exists as both a Flow and a Sequence, link them as TWINS (not by
+drilling): set the top-level \`twin\` field on each document to the other's id (\`flow.twin\` = the
+sequence id, and \`sequence.twin\` = the flow id). The UI then shows a Flow/Sequence toggle to switch
+altitude on the same scenario, and the sidebar marks the pair.
+- **Twin = whole ↔ whole** (two views of one scenario). **Drill** (\`subflow\`/\`sequence\` on a node/
+  edge) = **part-of** (one step → its sub-trace). Don't use a mid-flow drill to mean "the whole flow,
+  lower" — that's what a twin is for.
+- Set it on BOTH (each pointing to the other); one-sided is tolerated. validate flags
+  \`dangling-twin\` (target missing), \`conflicting-twin\` (the other points elsewhere), \`self-twin\`
+  (error), and advises (\`same-kind-twin\`) if the pair isn't a Flow + a Sequence.
+
 ## Where documents are saved
 Documents live under \`<workspace>/${BRAND.storeDir}/\`, where **workspace** is the project directory you are
 documenting. Pass it as the \`workspace\` argument on the tools:
@@ -479,8 +491,28 @@ The document content never contains machine paths — only the write destination
 - **subflow vs sequence asymmetry** — \`subflow\` is gated to \`type:subflow\` (the node IS a sub-flow
   box); \`sequence\` may sit on ANY node/edge (orthogonal drill to that step's exact execution).
   validate flags a **dangling subflow/sequence** target (warning) if the linked doc isn't present yet.
+- **A drill target is the SAME slice at a finer altitude — not the whole story retold.** A node/edge
+  \`sequence\` (or \`subflow\`) should cover only *that* step/transition's calls and begin at its
+  boundary. Hanging a Sequence that re-traces the WHOLE Flow off one mid-flow edge makes the two read
+  as "two views of the same thing" instead of a drill-down of that part.
+- **Want the entire Flow as a Sequence too?** That's a TWIN — set the top-level \`twin\` field on each
+  (Flow ↔ Sequence), NOT a \`sequence\` drill on the start. See the "Twin" section above.
 - **Explain drill-down to the human** when you use it ("I split this into linked levels — click *Open*
   on a step to go deeper"); many users meet drill-down here for the first time.
+
+## Categories — organizing the sidebar
+\`category\` (set via \`manage_flow set-category\`) is an **independent organizing axis** for the sidebar —
+group documents by topic/subsystem however reads best. It is orthogonal to drill-down and twins (those
+are content links; a category is just a sidebar folder).
+- **Default to cohesion: linked documents share a category.** A doc's natural category is the one its
+  **drill-parent** has (the flow that drills into it via \`subflow\`/\`sequence\`) and the one its **twin**
+  has (same scenario, other altitude). When you organize a project, set the whole **linked family**
+  (drill ancestors/descendants + twins) to the same category by default — don't scatter a parent and its
+  sub-trace, or a Flow and its Sequence twin, across different groups without a reason. The serve UI
+  mirrors this: setting a category on a linked doc offers **"Save for all linked" (recommended)**.
+- **Split a family across categories only deliberately**, when an editorial grouping genuinely cuts
+  across the link graph (e.g. a top orchestration flow in "Pipeline" while its supporting leaf
+  sub-processes live in "Stages"). That is allowed — cohesion is the default, not a hard rule.
 `;
 
 async function main() {

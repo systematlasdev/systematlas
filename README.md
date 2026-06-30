@@ -27,7 +27,7 @@ SystemAtlas turns a behaviour in your codebase into an interactive diagram at tw
 - **Flow** — high level: a directed graph of steps, branches and returns, color-coded by actor. *How the process works.*
 - **Sequence** — low level: every call, with params/returns and source refs, as a sequence diagram. *The exact call-by-call trace.*
 
-A Flow step can **drill down** into a sub-flow, and any step into a Sequence — so one diagram can carry the whole story, from the bird's-eye view to the precise calls.
+A Flow step can **drill down** into a sub-flow, and any step into a Sequence — so one diagram can carry the whole story, from the bird's-eye view to the precise calls. When the *same* scenario exists at both altitudes, link them as **twins**: a single toggle flips the whole diagram between its Flow and its Sequence. In the sidebar, documents organize into **categories** (nested, collapsible) — and linked documents move together.
 
 Documents are plain JSON (with a JSON Schema), **authored by an LLM over MCP** and rendered in the browser. Cross-platform — only Node 18+ and a browser.
 

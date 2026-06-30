@@ -44,6 +44,9 @@ interface TopBarProps {
   onCrumb: (index: number) => void;
   /** Active altitude — reflects the current document's kind (read-only indicator). */
   tab: Tab;
+  /** Present only when the active document has a (cross-kind) twin: turns the kind
+   *  indicator into a Flow/Sequence toggle that switches to the twin. */
+  twin?: { onSwitch: () => void };
   /** Present only for sequence documents. */
   seq?: SeqControls;
   /** Present only for flow documents. */
@@ -90,7 +93,7 @@ function SizeSlider({
   );
 }
 
-export function TopBar({ trail, onCrumb, tab, seq, flow }: TopBarProps) {
+export function TopBar({ trail, onCrumb, tab, twin, seq, flow }: TopBarProps) {
   return (
     <header
       style={{
@@ -214,28 +217,70 @@ export function TopBar({ trail, onCrumb, tab, seq, flow }: TopBarProps) {
             {divider}
           </>
         ) : null}
-        {/* Altitude indicator — read-only. The active level is driven by drill-down
-            (Flow → Sequence), not a toggle, so this reflects state rather than switching it. */}
-        <div
-          title={tab === "sequence" ? "Sequence altitude (low level)" : "Flow altitude (high level)"}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 7,
-            padding: "5px 11px",
-            background: "#ECE5D7",
-            borderRadius: 9,
-            fontSize: 13,
-            fontWeight: 600,
-            color: tokens.color.text,
-            userSelect: "none",
-          }}
-        >
-          <span style={{ display: "flex", color: tokens.color.muted }}>
-            {tab === "sequence" ? <IconSeqKind size={15} /> : <IconFlowKind size={15} />}
-          </span>
-          {tab === "sequence" ? "Sequence" : "Flow"}
-        </div>
+        {twin ? (
+          // The active document has a twin (same scenario, other altitude) → the
+          // indicator becomes a toggle. The active side is filled; clicking the other
+          // navigates to the twin.
+          <div
+            title="Switch between this scenario's Flow and Sequence (twins)"
+            style={{ display: "flex", alignItems: "center", gap: 2, padding: 2, background: "#ECE5D7", borderRadius: 9, userSelect: "none" }}
+          >
+            {(["flow", "sequence"] as const).map((t) => {
+              const active = tab === t;
+              return (
+                <button
+                  key={t}
+                  className="nodrag"
+                  onClick={active ? undefined : twin.onSwitch}
+                  disabled={active}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "4px 10px",
+                    border: "none",
+                    borderRadius: 7,
+                    background: active ? "#fff" : "transparent",
+                    boxShadow: active ? "0 1px 2px rgba(74,60,30,.14)" : "none",
+                    color: active ? tokens.color.text : tokens.color.textSecondary,
+                    cursor: active ? "default" : "pointer",
+                    fontFamily: "inherit",
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  <span style={{ display: "flex", color: active ? tokens.color.violet : tokens.color.muted }}>
+                    {t === "sequence" ? <IconSeqKind size={15} /> : <IconFlowKind size={15} />}
+                  </span>
+                  {t === "sequence" ? "Sequence" : "Flow"}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          /* Altitude indicator — read-only. The active level is driven by drill-down
+             (Flow → Sequence), not a toggle, so this reflects state rather than switching it. */
+          <div
+            title={tab === "sequence" ? "Sequence altitude (low level)" : "Flow altitude (high level)"}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              padding: "5px 11px",
+              background: "#ECE5D7",
+              borderRadius: 9,
+              fontSize: 13,
+              fontWeight: 600,
+              color: tokens.color.text,
+              userSelect: "none",
+            }}
+          >
+            <span style={{ display: "flex", color: tokens.color.muted }}>
+              {tab === "sequence" ? <IconSeqKind size={15} /> : <IconFlowKind size={15} />}
+            </span>
+            {tab === "sequence" ? "Sequence" : "Flow"}
+          </div>
+        )}
       </div>
     </header>
   );

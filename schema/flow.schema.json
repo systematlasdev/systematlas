@@ -35,6 +35,10 @@
       "items": { "type": "string", "minLength": 1 },
       "minItems": 1
     },
+    "twin": {
+      "description": "Optional id of this document's TWIN — the SAME whole scenario at the other altitude (typically a Flow paired with a Sequence). A document-level link, DISTINCT from node/edge drill-down (which is part-of: a step → its sub-trace). Set it on both twins, each pointing to the other. The UI shows a Flow/Sequence toggle to switch between them.",
+      "$ref": "#/$defs/scopedId"
+    },
     "actors": {
       "description": "Owners/participants. Every participant, human AND system. Each node references one actor as its owner (drives node color + legend).",
       "type": "array",

@@ -1,0 +1,45 @@
+{
+  "version": "1",
+  "documents": [
+    {
+      "id": "build-page",
+      "path": ".systematlas/build-page.flow.json",
+      "category": "Pipeline"
+    },
+    {
+      "id": "copy-assets",
+      "path": ".systematlas/copy-assets.flow.json",
+      "category": "Pipeline"
+    },
+    {
+      "id": "load-config",
+      "path": ".systematlas/load-config.flow.json",
+      "category": "Pipeline"
+    },
+    {
+      "id": "mdsite-build",
+      "path": ".systematlas/mdsite-build.flow.json",
+      "category": "Pipeline"
+    },
+    {
+      "id": "render-markdown",
+      "path": ".systematlas/render-markdown.sequence.json",
+      "category": "Pipeline"
+    },
+    {
+      "id": "load-config-seq",
+      "path": ".systematlas/load-config-seq.sequence.json",
+      "category": "Pipeline"
+    },
+    {
+      "id": "copy-assets-seq",
+      "path": ".systematlas/copy-assets-seq.sequence.json",
+      "category": "Pipeline"
+    },
+    {
+      "id": "cli-parse",
+      "path": ".systematlas/cli-parse.flow.json",
+      "category": "Stages"
+    }
+  ]
+}

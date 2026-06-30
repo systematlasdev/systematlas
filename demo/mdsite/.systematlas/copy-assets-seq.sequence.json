@@ -1,0 +1,148 @@
+{
+  "version": "1",
+  "id": "copy-assets-seq",
+  "title": "Copy assets → call trace",
+  "kind": "sequence",
+  "twin": "copy-assets",
+  "overview": [
+    "The exact call trace behind the Copy assets Flow: a recursive walk of the source tree that copies every non-Markdown file into the output, preserving relative paths. Toggle to the Flow twin for the high-level view."
+  ],
+  "actors": [
+    {
+      "id": "cli",
+      "label": "CLI",
+      "kind": "system"
+    },
+    {
+      "id": "assets",
+      "label": "Assets",
+      "kind": "service"
+    },
+    {
+      "id": "fs",
+      "label": "Filesystem",
+      "kind": "infra"
+    }
+  ],
+  "phases": [
+    {
+      "id": "walk",
+      "label": "Walk tree"
+    },
+    {
+      "id": "copy",
+      "label": "Copy file"
+    }
+  ],
+  "calls": [
+    {
+      "id": "c1",
+      "from": "cli",
+      "to": "assets",
+      "method": "copyAssets(cfg)",
+      "phase": "walk",
+      "description": [
+        "Entry: copy all non-Markdown assets into the output directory."
+      ],
+      "params": [
+        {
+          "name": "cfg",
+          "type": "Config"
+        }
+      ],
+      "returnType": "string[]",
+      "source": {
+        "file": "src/assets.js",
+        "symbol": "copyAssets",
+        "line": 6
+      },
+      "children": [
+        {
+          "id": "c2",
+          "from": "assets",
+          "to": "assets",
+          "method": "walk(cfg.srcDir)",
+          "phase": "walk",
+          "description": [
+            "Recursive descent over the source tree. Re-invoked for every sub-directory."
+          ],
+          "async": true,
+          "source": {
+            "file": "src/assets.js",
+            "symbol": "walk",
+            "line": 8
+          },
+          "children": [
+            {
+              "id": "c3",
+              "from": "assets",
+              "to": "fs",
+              "method": "readdir(d, { withFileTypes: true })",
+              "phase": "walk",
+              "description": [
+                "List directory entries with their types. A read error is caught and the branch returns empty."
+              ],
+              "returns": [
+                {
+                  "name": "entries",
+                  "type": "Dirent[]"
+                }
+              ],
+              "source": {
+                "file": "src/assets.js",
+                "symbol": "walk",
+                "line": 11
+              }
+            },
+            {
+              "id": "c4",
+              "from": "assets",
+              "to": "assets",
+              "method": "walk(p)",
+              "phase": "walk",
+              "description": [
+                "For a sub-directory entry, recurse so nested assets are found at any depth."
+              ],
+              "async": true,
+              "source": {
+                "file": "src/assets.js",
+                "symbol": "walk",
+                "line": 18
+              }
+            },
+            {
+              "id": "c5",
+              "from": "assets",
+              "to": "fs",
+              "method": "mkdir(dirname(out), { recursive: true })",
+              "phase": "copy",
+              "description": [
+                "For a non-.md file, ensure the output sub-directory exists before copying."
+              ],
+              "source": {
+                "file": "src/assets.js",
+                "symbol": "walk",
+                "line": 22
+              }
+            },
+            {
+              "id": "c6",
+              "from": "assets",
+              "to": "fs",
+              "method": "copyFile(p, out)",
+              "phase": "copy",
+              "description": [
+                "Copy the file verbatim to the mirrored output path, then record its relative path."
+              ],
+              "source": {
+                "file": "src/assets.js",
+                "symbol": "walk",
+                "line": 23
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

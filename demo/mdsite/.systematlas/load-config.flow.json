@@ -124,5 +124,6 @@
       "type": "branch",
       "label": "valid"
     }
-  ]
+  ],
+  "twin": "load-config-seq"
 }

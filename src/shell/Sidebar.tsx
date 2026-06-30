@@ -15,6 +15,7 @@ import {
   IconSidebar,
   IconTag,
   IconTrash,
+  IconTwin,
 } from "./icons";
 
 interface SidebarProps {
@@ -27,7 +28,7 @@ interface SidebarProps {
   onToggle: () => void;
   onSelectFlow: (id: string) => void;
   onRename: (id: string, title: string) => void;
-  onSetCategory: (id: string, category: string) => void;
+  onSetCategory: (id: string, category: string) => void | Promise<void>;
   onRenameCategory: (from: string, to: string) => void;
   onDelete: (id: string) => void;
   onOpenProject: (path: string) => void;
@@ -35,6 +36,8 @@ interface SidebarProps {
   onListDir: (path?: string) => Promise<DirListing>;
   /** child doc id → parent doc id (drill-down lineage). */
   parents: Record<string, string>;
+  /** doc id → its twin doc id (same scenario, other altitude). */
+  twins: Record<string, string>;
   mcp: McpStatus | null;
   onSetupMcp: (location: string, schema: McpSchema, dryRun?: boolean) => Promise<McpSetupResult>;
   /** Export the whole workspace as one self-contained HTML; resolves to its path. */
@@ -124,7 +127,7 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 export function Sidebar(props: SidebarProps) {
-  const { flows, activeFlow, projectName, canWrite, recents, parents, mcp, open, onToggle, onSelectFlow } = props;
+  const { flows, activeFlow, projectName, canWrite, recents, parents, twins, mcp, open, onToggle, onSelectFlow } = props;
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [pop, setPop] = useState<PopState>(null);
   const [draft, setDraft] = useState("");
@@ -248,6 +251,54 @@ export function Sidebar(props: SidebarProps) {
   // --- expanded panel -----------------------------------------------------------
   const root = buildTree(flows);
 
+  // Distinct existing category paths (incl. every ancestor prefix, so both "a" and
+  // "a/b" are offered) — shown as pick-able chips in the Set-category editor so the
+  // user reuses an existing category instead of retyping it (and risking a typo).
+  const existingCategories = (() => {
+    const set = new Set<string>();
+    for (const f of flows) {
+      const segs = (f.category ?? "").split("/").map((s) => s.trim()).filter(Boolean);
+      let acc = "";
+      for (const seg of segs) {
+        acc = acc ? `${acc}/${seg}` : seg;
+        set.add(acc);
+      }
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  })();
+
+  // The "family" of a document: the connected component over BOTH drill-down links
+  // (parent↔child) AND twin links (the same scenario at the other altitude). Ancestors,
+  // descendants, twins, and anything reachable through them. Linked docs usually want to
+  // move to a category together, so Set-category offers "all linked".
+  const lineageOf = (id: string): string[] => {
+    const adj = new Map<string, Set<string>>();
+    const link = (a: string, b: string) => {
+      if (!adj.has(a)) adj.set(a, new Set());
+      adj.get(a)!.add(b);
+    };
+    for (const [child, parent] of Object.entries(parents)) {
+      link(child, parent);
+      link(parent, child);
+    }
+    // Twins are linked too: a Flow and its Sequence twin are one scenario and belong
+    // together. `twins` is already symmetric; linking both directions is harmless.
+    for (const [a, b] of Object.entries(twins)) {
+      link(a, b);
+      link(b, a);
+    }
+    const seen = new Set<string>([id]);
+    const stack = [id];
+    while (stack.length) {
+      const cur = stack.pop()!;
+      for (const nb of adj.get(cur) ?? []) if (!seen.has(nb)) { seen.add(nb); stack.push(nb); }
+    }
+    const present = new Set(flows.map((f) => f.id));
+    return [...seen].filter((x) => present.has(x));
+  };
+  // Linked family of the doc being recategorised (empty unless in Set-category mode).
+  const catLinked = pop?.kind === "doc" && pop.mode === "category" ? lineageOf(pop.f.id) : [];
+
   const anchor = (e: React.MouseEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     return { top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) };
@@ -286,6 +337,13 @@ export function Sidebar(props: SidebarProps) {
     }
     setPop(null);
   };
+  // Apply the drafted category to one or more documents. Sequential (await each) so
+  // the per-document manifest read-modify-write never races when moving a family.
+  const commitCategory = async (ids: string[]) => {
+    const cat = draft.trim();
+    for (const id of ids) await props.onSetCategory(id, cat);
+    setPop(null);
+  };
 
   // depth = drill-down nesting level (0 = root). Subordinates get a leading ↳ and
   // are indented under their parent; the parent's parentTitle drives the tooltip.
@@ -293,6 +351,10 @@ export function Sidebar(props: SidebarProps) {
     const active = f.id === activeFlow;
     const parentId = parents[f.id];
     const parentTitle = parentId ? (flows.find((x) => x.id === parentId)?.title ?? parentId) : null;
+    const twinId = twins[f.id];
+    // Emphasize the twin glyph when this doc is selected, or when it is the twin of
+    // the selected doc (so selecting one lights up the pair).
+    const twinLit = !!twinId && (active || twinId === activeFlow);
     return (
       <div key={f.id} className={active ? "ft-doc ft-doc-active" : "ft-doc"}>
         <button
@@ -302,6 +364,14 @@ export function Sidebar(props: SidebarProps) {
           style={{ paddingLeft: 10 + depth * 16 }}
         >
           {depth > 0 ? <span style={{ color: tokens.color.faint2, flex: "0 0 auto", fontSize: 11, lineHeight: 1, marginRight: 4, opacity: 0.8 }}>↳</span> : null}
+          {twinId ? (
+            <span
+              title={`Twin: ${twinId} — same scenario, other altitude`}
+              style={{ color: twinLit ? tokens.color.violet : tokens.color.muted, display: "flex", flex: "0 0 auto" }}
+            >
+              <IconTwin size={15} />
+            </span>
+          ) : null}
           <span style={{ color: active ? tokens.color.violet : "#A39A82", display: "flex", flex: "0 0 auto" }}>
             <KindIcon kind={f.kind} />
           </span>
@@ -323,8 +393,23 @@ export function Sidebar(props: SidebarProps) {
     // this same set renders indented under it (recursively).
     const docs = [...node.docs];
     const ids = new Set(docs.map((d) => d.id));
+    const byId = new Map(docs.map((d) => [d.id, d]));
+    // A Sequence twin with no drill parent of its own is NOT a free top-level doc — it
+    // belongs beside its Flow twin (twin = whole↔whole, the same scenario). We render it
+    // immediately AFTER its flow partner at the SAME depth (a sibling, not a drill child),
+    // so it is skipped by the normal lineage walk below and emitted explicitly.
+    const attachedTwinOf = (f: DocMeta): DocMeta | undefined => {
+      const t = twins[f.id] ? byId.get(twins[f.id]) : undefined;
+      return t && t.kind === "sequence" && !parents[t.id] ? t : undefined;
+    };
+    const isAttachedTwin = (d: DocMeta) => {
+      if (d.kind !== "sequence" || parents[d.id]) return false;
+      const f = twins[d.id] ? byId.get(twins[d.id]) : undefined;
+      return !!f && f.kind === "flow";
+    };
     const childrenOf = (pid: string | null) =>
       docs
+        .filter((d) => !isAttachedTwin(d))
         .filter((d) => {
           const par = parents[d.id];
           return pid === null ? !(par && ids.has(par)) : par === pid;
@@ -337,6 +422,12 @@ export function Sidebar(props: SidebarProps) {
         if (seen.has(doc.id)) continue; // cycle guard
         seen.add(doc.id);
         forest.push(docRow(doc, d));
+        // A Flow's attached Sequence twin sits right after it, same depth.
+        const tw = attachedTwinOf(doc);
+        if (tw && !seen.has(tw.id)) {
+          seen.add(tw.id);
+          forest.push(docRow(tw, d));
+        }
         walk(doc.id, d + 1);
       }
     };
@@ -801,14 +892,82 @@ export function Sidebar(props: SidebarProps) {
                     else if (e.key === "Escape") setPop(null);
                   }}
                 />
-                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                  <button className="ft-pop-item" style={{ width: "auto", padding: "6px 12px" }} onClick={() => setPop(null)}>
-                    Cancel
-                  </button>
-                  <button className="ft-primary" style={{ borderRadius: 8, padding: "6px 14px", fontSize: 13 }} onClick={commit}>
-                    Save
-                  </button>
-                </div>
+                {pop.kind === "doc" && pop.mode === "category" && existingCategories.length ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    <div className="ft-pop-label" style={{ padding: "0 2px" }}>Existing categories</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, maxHeight: 132, overflowY: "auto" }}>
+                      {existingCategories.map((c) => {
+                        const sel = draft.trim() === c;
+                        return (
+                          <button
+                            key={c}
+                            type="button"
+                            title={`Use category "${c}"`}
+                            onClick={() => setDraft(c)}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              maxWidth: "100%",
+                              padding: "3px 9px",
+                              borderRadius: 999,
+                              border: `1px solid ${sel ? tokens.color.violet : tokens.color.border}`,
+                              background: sel ? tokens.color.violetBg : "transparent",
+                              color: sel ? tokens.color.violet : tokens.color.textSecondary,
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              lineHeight: 1.3,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            <IconTag size={11} />
+                            {c}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+                {pop.kind === "doc" && pop.mode === "category" && catLinked.length > 1 ? (
+                  // The document is part of a drill-down family → offer to move the
+                  // whole family at once (recommended) or just this one document.
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <button
+                      className="ft-primary"
+                      style={{ borderRadius: 8, padding: "7px 14px", fontSize: 13, justifyContent: "center" }}
+                      title={`Move all ${catLinked.length} linked documents to this category`}
+                      onClick={() => commitCategory(catLinked)}
+                    >
+                      Save for all linked ({catLinked.length})
+                    </button>
+                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                      <button className="ft-pop-item" style={{ width: "auto", padding: "6px 12px" }} onClick={() => setPop(null)}>
+                        Cancel
+                      </button>
+                      <button
+                        className="ft-pop-item"
+                        style={{ width: "auto", padding: "6px 12px", color: tokens.color.textSecondary }}
+                        title="Set the category for this document only"
+                        onClick={() => commitCategory([pop.f.id])}
+                      >
+                        Set only for this one
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button className="ft-pop-item" style={{ width: "auto", padding: "6px 12px" }} onClick={() => setPop(null)}>
+                      Cancel
+                    </button>
+                    <button className="ft-primary" style={{ borderRadius: 8, padding: "6px 14px", fontSize: 13 }} onClick={commit}>
+                      Save
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

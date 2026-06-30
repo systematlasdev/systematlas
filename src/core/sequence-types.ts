@@ -38,6 +38,9 @@ export interface SequenceDocument {
   title: string;
   /** Optional document-level overview (paragraphs), shown in the bottom bar. */
   overview?: string[];
+  /** Optional id of the TWIN document — the same whole scenario at the other
+   *  altitude (Sequence ↔ Flow). Document-level link, distinct from drill-down. */
+  twin?: string;
   actors: Actor[];
   phases?: SequencePhase[];
   calls: SequenceCall[];

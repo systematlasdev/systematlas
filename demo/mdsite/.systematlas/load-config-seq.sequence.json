@@ -1,0 +1,121 @@
+{
+  "version": "1",
+  "id": "load-config-seq",
+  "title": "Load config → call trace",
+  "kind": "sequence",
+  "twin": "load-config",
+  "overview": [
+    "The exact call trace behind the Load config Flow: read the optional config file, layer defaults ← file ← CLI overrides, then validate the result. Toggle to the Flow twin for the high-level view."
+  ],
+  "actors": [
+    {
+      "id": "cli",
+      "label": "CLI",
+      "kind": "system"
+    },
+    {
+      "id": "config",
+      "label": "Config",
+      "kind": "service"
+    },
+    {
+      "id": "fs",
+      "label": "Filesystem",
+      "kind": "infra"
+    }
+  ],
+  "phases": [
+    {
+      "id": "resolve",
+      "label": "Resolve & merge"
+    },
+    {
+      "id": "validate",
+      "label": "Validate"
+    }
+  ],
+  "calls": [
+    {
+      "id": "c1",
+      "from": "cli",
+      "to": "config",
+      "method": "loadConfig(overrides)",
+      "phase": "resolve",
+      "description": [
+        "Entry: resolve the effective config for this build."
+      ],
+      "params": [
+        {
+          "name": "overrides",
+          "type": "Partial<Config>"
+        }
+      ],
+      "returnType": "Config",
+      "source": {
+        "file": "src/config.js",
+        "symbol": "loadConfig",
+        "line": 14
+      },
+      "children": [
+        {
+          "id": "c2",
+          "from": "config",
+          "to": "fs",
+          "method": "readFile(\"mdsite.config.json\", \"utf8\")",
+          "phase": "resolve",
+          "description": [
+            "Read the optional project config. A missing file is caught and treated as {} (defaults only)."
+          ],
+          "returns": [
+            {
+              "name": "json",
+              "type": "string"
+            }
+          ],
+          "source": {
+            "file": "src/config.js",
+            "symbol": "loadConfig",
+            "line": 17
+          }
+        },
+        {
+          "id": "c3",
+          "from": "config",
+          "to": "config",
+          "method": "{ ...DEFAULTS, ...fromFile, ...overrides }",
+          "phase": "resolve",
+          "description": [
+            "Layer the sources in precedence order: defaults ← config file ← CLI overrides."
+          ],
+          "returns": [
+            {
+              "name": "cfg",
+              "type": "Config"
+            }
+          ],
+          "source": {
+            "file": "src/config.js",
+            "symbol": "loadConfig",
+            "line": 21
+          }
+        },
+        {
+          "id": "c4",
+          "from": "config",
+          "to": "config",
+          "method": "validateConfig(cfg)",
+          "phase": "validate",
+          "description": [
+            "Assert baseUrl is root-relative or absolute, and srcDir/outDir are present.",
+            "Throws a clear Error on the first violation; otherwise returns the validated config."
+          ],
+          "source": {
+            "file": "src/config.js",
+            "symbol": "validateConfig",
+            "line": 26
+          }
+        }
+      ]
+    }
+  ]
+}
