@@ -3,6 +3,28 @@ import { type Doc, docKind } from "../model";
 import type { FlowDocument } from "../core/types";
 import { getSource, type DocMeta, type McpStatus, type McpSetupResult, type McpSchema, type DirListing, type BuildResult } from "./source";
 
+// The document to select by default = the one the sidebar shows on TOP. The sidebar
+// renders ungrouped docs first, then categories by name, and within each the drill
+// ROOTS first (by title) — so the top row is the first root in that order. A "root"
+// has no drill-parent and is not a Sequence twin attached beside its Flow (those never
+// lead). Mirrors Sidebar.tsx's ordering so the initial selection matches what's shown.
+function pickDefaultId(metas: DocMeta[], parents: Map<string, string>, twins: Map<string, string>): string | null {
+  if (!metas.length) return null;
+  const byId = new Map(metas.map((m) => [m.id, m]));
+  const isAttachedTwin = (m: DocMeta) => {
+    if (m.kind !== "sequence" || parents.has(m.id)) return false;
+    const partner = twins.get(m.id);
+    return !!partner && byId.get(partner)?.kind === "flow";
+  };
+  const roots = metas.filter((m) => !parents.has(m.id) && !isAttachedTwin(m));
+  const pool = (roots.length ? roots : metas).slice();
+  pool.sort((a, b) => {
+    const ga = a.category ? 1 : 0, gb = b.category ? 1 : 0; // ungrouped first
+    return ga - gb || (a.category ?? "").localeCompare(b.category ?? "") || (a.title || a.id).localeCompare(b.title || b.id);
+  });
+  return pool[0]?.id ?? null;
+}
+
 export interface FlowData {
   flows: DocMeta[];
   /** Project display name (from the manifest, else the folder name). */
@@ -103,6 +125,13 @@ export function useFlowData(): FlowData {
         parentsRef.current = m;
         setParents(Object.fromEntries(m));
         setTwins(Object.fromEntries(tw));
+        // Initial selection: once drill/twin links are known, point the (still
+        // auto-selected) trail at the sidebar's top row. Skipped once the user has
+        // navigated, so we never override an explicit choice.
+        if (autoSelectedRef.current) {
+          const top = pickDefaultId(flowsRef.current, m, tw);
+          if (top) setTrail(pathTo(top));
+        }
       })
       .catch(() => undefined);
     return () => {
@@ -124,17 +153,30 @@ export function useFlowData(): FlowData {
   };
 
   // Stable identities so consumers (e.g. buildGraph memo) don't recompute each render.
-  const navigate = useCallback((id: string) => setTrail(pathTo(id)), []);
-  const drillTo = useCallback(
-    (id: string) => setTrail((t) => (t[t.length - 1] === id ? t : [...t, id])),
-    [],
-  );
-  const goToDepth = useCallback((index: number) => setTrail((t) => t.slice(0, index + 1)), []);
+  const navigate = useCallback((id: string) => {
+    autoSelectedRef.current = false;
+    setTrail(pathTo(id));
+  }, []);
+  const drillTo = useCallback((id: string) => {
+    autoSelectedRef.current = false;
+    setTrail((t) => (t[t.length - 1] === id ? t : [...t, id]));
+  }, []);
+  const goToDepth = useCallback((index: number) => {
+    autoSelectedRef.current = false;
+    setTrail((t) => t.slice(0, index + 1));
+  }, []);
 
   // Keep a ref to the active id so the (once-only) subscription can read the
   // current value without re-subscribing on every switch.
   const activeRef = useRef<string | null>(null);
   activeRef.current = activeId;
+  // Latest listing (with categories), readable from effects without re-subscribing.
+  const flowsRef = useRef<DocMeta[]>(flows);
+  flowsRef.current = flows;
+  // True until the user first picks a document. While true, the initial selection
+  // tracks the sidebar's top row (see the parents/twins effect); once the user
+  // navigates we never override their choice.
+  const autoSelectedRef = useRef(true);
 
   // Apply a fresh project listing: refresh flows/name and keep the trail valid
   // (a deleted active doc falls back to the first available one).
@@ -239,6 +281,9 @@ export function useFlowData(): FlowData {
       // A new graph/sequence file appeared → show it. Refresh the listing (for the
       // authoritative title/category), then jump the trail to the new document.
       onDocAdded: (id, d) => {
+        // Showing the just-created doc is an explicit selection — stop tracking the
+        // sidebar's top row, so the default-pick effect can't bounce us back to the root.
+        autoSelectedRef.current = false;
         setDoc(d);
         setError(null);
         source
